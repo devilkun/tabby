@@ -285,7 +285,7 @@ export class VaultFileProvider extends FileProvider {
                     icon: 'fas fa-file',
                     result: f,
                 })),
-            ])
+            ]).catch(() => null)
             if (result) {
                 return `${this.prefix}${result.key.id}`
             }
@@ -306,7 +306,7 @@ export class VaultFileProvider extends FileProvider {
                 id,
                 description: `${description} (${transfer.getName()})`,
             },
-            value: (await transfer.readAll()).toString('base64'),
+            value: Buffer.from(await transfer.readAll()).toString('base64'),
         })
         return `${this.prefix}${id}`
     }

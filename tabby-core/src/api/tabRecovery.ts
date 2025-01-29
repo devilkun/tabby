@@ -1,10 +1,10 @@
-import deepClone from 'clone-deep'
 import { BaseTabComponent } from '../components/baseTab.component'
 import { NewTabParameters } from '../services/tabs.service'
 
 export interface RecoveryToken {
     [_: string]: any
     type: string
+    tabIcon?: string|null
     tabColor?: string|null
 }
 
@@ -38,14 +38,4 @@ export abstract class TabRecoveryProvider <T extends BaseTabComponent> {
      *          or `null` if this token is from a different tab type or is not supported
      */
     abstract recover (recoveryToken: RecoveryToken): Promise<NewTabParameters<T>>
-
-    /**
-     * @param recoveryToken a recovery token found in the saved tabs list
-     * @returns [[RecoveryToken]] a new recovery token to create the duplicate tab from
-     *
-     * The default implementation just returns a deep copy of the original token
-     */
-    duplicate (recoveryToken: RecoveryToken): RecoveryToken {
-        return deepClone(recoveryToken)
-    }
 }

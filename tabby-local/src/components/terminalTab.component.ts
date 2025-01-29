@@ -1,9 +1,9 @@
-import { Component, Input, Injector } from '@angular/core'
-import { BaseTabProcess, WIN_BUILD_CONPTY_SUPPORTED, isWindowsBuild } from 'tabby-core'
+import { marker as _ } from '@biesbjerg/ngx-translate-extract-marker'
+import { Component, Input, Injector, Inject, Optional } from '@angular/core'
+import { BaseTabProcess, WIN_BUILD_CONPTY_SUPPORTED, isWindowsBuild, GetRecoveryTokenOptions } from 'tabby-core'
 import { BaseTerminalTabComponent } from 'tabby-terminal'
-import { LocalProfile, SessionOptions } from '../api'
+import { LocalProfile, SessionOptions, UACService } from '../api'
 import { Session } from '../session'
-import { UACService } from '../services/uac.service'
 
 /** @hidden */
 @Component({
@@ -12,15 +12,14 @@ import { UACService } from '../services/uac.service'
     styles: BaseTerminalTabComponent.styles,
     animations: BaseTerminalTabComponent.animations,
 })
-export class TerminalTabComponent extends BaseTerminalTabComponent {
+export class TerminalTabComponent extends BaseTerminalTabComponent<LocalProfile> {
     @Input() sessionOptions: SessionOptions // Deprecated
-    @Input() profile: LocalProfile
     session: Session|null = null
 
     // eslint-disable-next-line @typescript-eslint/no-useless-constructor
     constructor (
         injector: Injector,
-        private uac: UACService,
+        @Optional() @Inject(UACService) private uac: UACService|undefined,
     ) {
         super(injector)
     }
@@ -29,7 +28,6 @@ export class TerminalTabComponent extends BaseTerminalTabComponent {
         this.sessionOptions = this.profile.options
 
         this.logger = this.log.create('terminalTab')
-        this.session = new Session(this.injector)
 
         const isConPTY = isWindowsBuild(WIN_BUILD_CONPTY_SUPPORTED) && this.config.store.terminal.useConPTY
 
@@ -52,29 +50,32 @@ export class TerminalTabComponent extends BaseTerminalTabComponent {
 
     protected onFrontendReady (): void {
         this.initializeSession(this.size.columns, this.size.rows)
-        this.savedStateIsLive = this.profile.options.restoreFromPTYID === this.session?.getPTYID()
+        this.savedStateIsLive = this.profile.options.restoreFromPTYID === this.session?.getID()
         super.onFrontendReady()
     }
 
     initializeSession (columns: number, rows: number): void {
-        if (this.profile.options.runAsAdministrator && this.uac.isAvailable) {
+
+        const session = new Session(this.injector)
+
+        if (this.profile.options.runAsAdministrator && this.uac?.isAvailable) {
             this.profile = {
                 ...this.profile,
                 options: this.uac.patchSessionOptionsForUAC(this.profile.options),
             }
         }
 
-        this.session!.start({
+        session.start({
             ...this.profile.options,
             width: columns,
             height: rows,
         })
 
-        this.attachSessionHandlers(true)
+        this.setSession(session)
         this.recoveryStateChangedHint.next()
     }
 
-    async getRecoveryToken (): Promise<any> {
+    async getRecoveryToken (options?: GetRecoveryTokenOptions): Promise<any> {
         const cwd = this.session ? await this.session.getWorkingDirectory() : null
         return {
             type: 'app:local-tab',
@@ -83,10 +84,10 @@ export class TerminalTabComponent extends BaseTerminalTabComponent {
                 options: {
                     ...this.profile.options,
                     cwd: cwd ?? this.profile.options.cwd,
-                    restoreFromPTYID: this.session?.getPTYID(),
+                    restoreFromPTYID: options?.includeState && this.session?.getID(),
                 },
             },
-            savedState: this.frontend?.saveState(),
+            savedState: options?.includeState && this.frontend?.saveState(),
         }
     }
 
@@ -108,16 +109,30 @@ export class TerminalTabComponent extends BaseTerminalTabComponent {
         return (await this.platform.showMessageBox(
             {
                 type: 'warning',
-                message: `"${children[0].command}" is still running. Close?`,
-                buttons: ['Kill', 'Cancel'],
+                message: this.translate.instant(
+                    _('"{command}" is still running. Close?'),
+                    children[0],
+                ),
+                buttons: [
+                    this.translate.instant(_('Kill')),
+                    this.translate.instant(_('Cancel')),
+                ],
                 defaultId: 0,
                 cancelId: 1,
-            }
+            },
         )).response === 0
     }
 
     ngOnDestroy (): void {
         super.ngOnDestroy()
         this.session?.destroy()
+    }
+
+    /**
+     * Return true if the user explicitly exit the session.
+     * Always return true for terminalTab as the session can only be ended by the user
+     */
+    protected isSessionExplicitlyTerminated (): boolean {
+        return true
     }
 }

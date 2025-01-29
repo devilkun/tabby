@@ -4,37 +4,34 @@ Tabby is an Electron app, with the frontend written in Typescript with the help 
 
 # Getting started
 
-First of all, clone this repository. You'll also need Node.js 14 or newer and Yarn.
+First of all, clone this repository.
 
-First, install the dependencies:
+# Install Dependencies
+- [Node.js](https://nodejs.org/en/download/) **version 15 or newer*
+- [Yarn](https://yarnpkg.com/)
+
+First, from within the `tabby` directory install the dependencies via yarn:
 
 ```
-# macOS:
+# macOS & Windows:
 yarn
-./scripts/build-native.js
 ```
 
 ```
 # Linux (Debian/Ubuntu here as an example)
 sudo apt install libfontconfig-dev libsecret-1-dev libarchive-tools libnss3 libatk1.0-0 libatk-bridge2.0-0 libgdk-pixbuf2.0-0 libgtk-3-0 libgbm1 cmake
 yarn
-./scripts/build-native.js
 ```
 
-```
-# Windows:
-npm -g install windows-build-tools
-yarn
-node scripts\build-native.js
-```
+_⚠️Note: If you forked this repository, you may need to pull down the tags from this repository before installing node modules. `git pull --tags upstream master`_
 
-Now, check if your build is working:
+Build Tabby:
 
 ```
 yarn run build
 ```
 
-Start Tabby with
+Start Tabby
 
 ```
 yarn start
@@ -45,13 +42,13 @@ yarn start
 To build an installer, first complete a "normal" build as described above and then run:
 
 ```
-node scripts/prepackage-plugins.js
+node scripts/prepackage-plugins.mjs
 
-node scripts/build-windows.js
+node scripts/build-windows.mjs
 # or
-node scripts/build-linux.js
+node scripts/build-linux.mjs
 # or
-node scripts/build-macos.js
+node scripts/build-macos.mjs
 ```
 
 The artifacts will be produced in the `dist` folder.

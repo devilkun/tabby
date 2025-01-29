@@ -2,6 +2,7 @@
     display: flex;
     flex: auto;
     flex-direction: column;
+    min-width: 0;
 
     >.btn-block {
         margin: 20px;
@@ -42,11 +43,14 @@
 
         > .tab-content {
             flex: auto;
-            padding: 20px 30px;
+            padding: 20px 0;
             overflow-y: auto;
+            display: flex;
+            flex-direction: column;
 
             > ::ng-deep .tab-pane {
-                height: 100%;
+                padding: 0 30px;
+                min-height: 100%;
 
                 > settings-tab-body > * {
                     display: block;

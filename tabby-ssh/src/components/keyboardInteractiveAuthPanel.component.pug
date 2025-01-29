@@ -1,6 +1,6 @@
 .d-flex
-    strong Keyboard-interactive auth
-    .ml-2 {{prompt.name}}
+    strong(translate) Keyboard-interactive auth
+    .ms-2 {{prompt.name}}
 
 .prompt-text {{prompt.prompts[step].prompt}}
 
@@ -14,11 +14,19 @@ input.form-control.mt-2(
 )
 
 .d-flex.mt-3
-    button.btn.btn-secondary(
+    checkbox(
+        *ngIf='isPassword()',
+        [(ngModel)]='remember',
+        [text]='"Save password"|translate'
+    )
+
+    .ms-auto
+
+    button.btn.btn-secondary.me-3(
         *ngIf='step > 0',
         (click)='previous()'
     )
-    .ml-auto
+
     button.btn.btn-primary(
         (click)='next()'
     )

@@ -1,12 +1,17 @@
 import { Injector } from '@angular/core'
 import { Observable, Subject, AsyncSubject, ReplaySubject, BehaviorSubject } from 'rxjs'
-import { ResizeEvent } from '../api/interfaces'
+import { BaseTerminalProfile, ResizeEvent } from '../api/interfaces'
 
 export interface SearchOptions {
     regex?: boolean
     wholeWord?: boolean
     caseSensitive?: boolean
     incremental?: true
+}
+
+export interface SearchState {
+    resultIndex?: number
+    resultCount: number
 }
 
 /**
@@ -59,7 +64,7 @@ export abstract class Frontend {
         }
     }
 
-    abstract attach (host: HTMLElement): Promise<void>
+    abstract attach (host: HTMLElement, profile: BaseTerminalProfile): Promise<void>
     detach (host: HTMLElement): void { } // eslint-disable-line
 
     abstract getSelection (): string
@@ -67,19 +72,24 @@ export abstract class Frontend {
     abstract selectAll (): void
     abstract clearSelection (): void
     abstract focus (): void
-    abstract write (data: string): void
+    abstract write (data: string): Promise<void>
     abstract clear (): void
     abstract visualBell (): void
+
+    abstract scrollToTop (): void
+    abstract scrollPages (pages: number): void
     abstract scrollToBottom (): void
 
-    abstract configure (): void
+    abstract configure (profile: BaseTerminalProfile): void
     abstract setZoom (zoom: number): void
 
-    abstract findNext (term: string, searchOptions?: SearchOptions): boolean
-    abstract findPrevious (term: string, searchOptions?: SearchOptions): boolean
+    abstract findNext (term: string, searchOptions?: SearchOptions): SearchState
+    abstract findPrevious (term: string, searchOptions?: SearchOptions): SearchState
+    abstract cancelSearch (): void
 
     abstract saveState (): any
     abstract restoreState (state: string): void
 
     abstract supportsBracketedPaste (): boolean
+    abstract isAlternateScreenActive (): boolean
 }

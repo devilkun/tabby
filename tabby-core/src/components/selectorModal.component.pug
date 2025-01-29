@@ -17,16 +17,18 @@
                 (click)='selectOption(option)',
                 [class.active]='selectedIndex == i'
             )
-                i.icon(
-                    class='fa-fw {{option.icon}}',
-                    style='color: {{option.color}}',
-                    *ngIf='!iconIsSVG(option.icon)'
+                profile-icon(
+                    [icon]='option.icon',
+                    [color]='option.color'
                 )
-                .icon(
-                    [fastHtmlBind]='option.icon',
-                    style='color: {{option.color}}',
-                    *ngIf='iconIsSVG(option.icon)'
-                )
-                .title.mr-2 {{getOptionText(option)}}
-                .description.no-wrap.text-muted {{option.description}}
-                .no-wrap.badge.badge-secondary.text-muted.ml-auto(*ngIf='selectedIndex == i') Enter
+                .title.me-2 {{getOptionText(option)}}
+                .description.no-wrap.text-muted(
+                    *ngIf='option.description !== getOptionText(option)'
+                ) {{option.description}}
+                .ms-auto
+                .no-wrap.badge.text-bg-secondary.ms-2(*ngIf='selectedIndex == i && canEditSelected()')
+                    span BACKSPACE
+                    i.fas.fa-pencil.ms-1
+                .no-wrap.badge.text-bg-secondary.ms-2(*ngIf='selectedIndex == i')
+                    span ENTER
+                    i.fas.fa-arrow-right.ms-1
