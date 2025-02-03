@@ -1,8 +1,8 @@
+import { marker as _ } from '@biesbjerg/ngx-translate-extract-marker'
 import colors from 'ansi-colors'
 import { Component, Injector } from '@angular/core'
-import { first } from 'rxjs'
-import { Platform, RecoveryToken } from 'tabby-core'
-import { BaseTerminalTabComponent } from 'tabby-terminal'
+import { Platform } from 'tabby-core'
+import { BaseTerminalTabComponent, ConnectableTerminalTabComponent } from 'tabby-terminal'
 import { TelnetProfile, TelnetSession } from '../session'
 
 
@@ -10,14 +10,12 @@ import { TelnetProfile, TelnetSession } from '../session'
 @Component({
     selector: 'telnet-tab',
     template: `${BaseTerminalTabComponent.template} ${require('./telnetTab.component.pug')}`,
-    styles: [require('./telnetTab.component.scss'), ...BaseTerminalTabComponent.styles],
+    styleUrls: ['./telnetTab.component.scss', ...BaseTerminalTabComponent.styles],
     animations: BaseTerminalTabComponent.animations,
 })
-export class TelnetTabComponent extends BaseTerminalTabComponent {
+export class TelnetTabComponent extends ConnectableTerminalTabComponent<TelnetProfile> {
     Platform = Platform
-    profile?: TelnetProfile
     session: TelnetSession|null = null
-    private reconnectOffered = false
 
     // eslint-disable-next-line @typescript-eslint/no-useless-constructor
     constructor (
@@ -28,56 +26,32 @@ export class TelnetTabComponent extends BaseTerminalTabComponent {
     }
 
     ngOnInit (): void {
-        if (!this.profile) {
-            throw new Error('Profile not set')
-        }
-
-        this.logger = this.log.create('telnetTab')
-
         this.subscribeUntilDestroyed(this.hotkeys.hotkey$, hotkey => {
             if (this.hasFocus && hotkey === 'restart-telnet-session') {
                 this.reconnect()
             }
         })
 
-        this.frontendReady$.pipe(first()).subscribe(() => {
-            this.initializeSession()
-        })
-
         super.ngOnInit()
     }
 
-    protected attachSessionHandlers (): void {
-        const session = this.session!
-        this.attachSessionHandler(session.destroyed$, () => {
-            if (this.frontend) {
-                // Session was closed abruptly
-                if (!this.reconnectOffered) {
-                    this.reconnectOffered = true
-                    this.write('Press any key to reconnect\r\n')
-                    this.input$.pipe(first()).subscribe(() => {
-                        if (!this.session?.open && this.reconnectOffered) {
-                            this.reconnect()
-                        }
-                    })
-                }
-            }
-        })
-        super.attachSessionHandlers()
+    protected onSessionDestroyed (): void {
+        if (this.frontend) {
+            // Session was closed abruptly
+            this.write('\r\n' + colors.black.bgWhite(' TELNET ') + ` ${this.session?.profile.options.host}: session closed\r\n`)
+
+            super.onSessionDestroyed()
+        }
     }
 
     async initializeSession (): Promise<void> {
-        this.reconnectOffered = false
-        if (!this.profile) {
-            this.logger.error('No Telnet connection info supplied')
-            return
-        }
+        await super.initializeSession()
 
         const session = new TelnetSession(this.injector, this.profile)
         this.setSession(session)
 
         try {
-            this.startSpinner('Connecting')
+            this.startSpinner(this.translate.instant(_('Connecting')))
 
             this.attachSessionHandler(session.serviceMessage$, msg => {
                 this.write(`\r${colors.black.bgWhite(' Telnet ')} ${msg}\r\n`)
@@ -97,20 +71,6 @@ export class TelnetTabComponent extends BaseTerminalTabComponent {
         }
     }
 
-    async getRecoveryToken (): Promise<RecoveryToken> {
-        return {
-            type: 'app:telnet-tab',
-            profile: this.profile,
-            savedState: this.frontend?.saveState(),
-        }
-    }
-
-    async reconnect (): Promise<void> {
-        this.session?.destroy()
-        await this.initializeSession()
-        this.session?.releaseInitialDataBuffer()
-    }
-
     async canClose (): Promise<boolean> {
         if (!this.session?.open) {
             return true
@@ -118,11 +78,21 @@ export class TelnetTabComponent extends BaseTerminalTabComponent {
         return (await this.platform.showMessageBox(
             {
                 type: 'warning',
-                message: `Disconnect from ${this.profile?.options.host}?`,
-                buttons: ['Disconnect', 'Do not close'],
+                message: this.translate.instant(_('Disconnect from {host}?'), this.profile.options),
+                buttons: [
+                    this.translate.instant(_('Disconnect')),
+                    this.translate.instant(_('Do not close')),
+                ],
                 defaultId: 0,
                 cancelId: 1,
-            }
+            },
         )).response === 0
     }
+
+    protected isSessionExplicitlyTerminated (): boolean {
+        return super.isSessionExplicitlyTerminated() ||
+        this.recentInputs.endsWith('close\r') ||
+        this.recentInputs.endsWith('quit\r')
+    }
+
 }

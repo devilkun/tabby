@@ -1,14 +1,12 @@
 /* eslint-disable @typescript-eslint/explicit-module-boundary-types */
-import { NgModule } from '@angular/core'
+import { ApplicationRef, NgModule } from '@angular/core'
 import { BrowserModule } from '@angular/platform-browser'
-import { NgbModule } from '@ng-bootstrap/ng-bootstrap'
 import { ToastrModule } from 'ngx-toastr'
 
 export function getRootModule (plugins: any[]) {
     const imports = [
         BrowserModule,
         ...plugins,
-        NgbModule,
         ToastrModule.forRoot({
             positionClass: 'toast-bottom-center',
             toastClass: 'toast',
@@ -27,8 +25,14 @@ export function getRootModule (plugins: any[]) {
 
     @NgModule({
         imports,
-        bootstrap,
-    }) class RootModule { } // eslint-disable-line @typescript-eslint/no-extraneous-class
+    }) class RootModule {
+        ngDoBootstrap (appRef: ApplicationRef) {
+            (window as any)['requestAnimationFrame'] = window[window['Zone'].__symbol__('requestAnimationFrame')]
+
+            const componentDef = bootstrap[0]
+            appRef.bootstrap(componentDef)
+        }
+    }
 
     return RootModule
 }

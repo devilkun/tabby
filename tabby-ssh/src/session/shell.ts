@@ -1,17 +1,15 @@
 import { Observable, Subject } from 'rxjs'
-import colors from 'ansi-colors'
 import stripAnsi from 'strip-ansi'
-import { ClientChannel } from 'ssh2'
 import { Injector } from '@angular/core'
 import { LogService } from 'tabby-core'
-import { BaseSession } from 'tabby-terminal'
+import { BaseSession, UTF8SplitterMiddleware, InputProcessor } from 'tabby-terminal'
 import { SSHSession } from './ssh'
 import { SSHProfile } from '../api'
+import * as russh from 'russh'
 
 
 export class SSHShellSession extends BaseSession {
-    shell?: ClientChannel
-    private profile: SSHProfile
+    shell?: russh.Channel
     get serviceMessage$ (): Observable<string> { return this.serviceMessage }
     private serviceMessage = new Subject<string>()
     private ssh: SSHSession|null
@@ -19,11 +17,14 @@ export class SSHShellSession extends BaseSession {
     constructor (
         injector: Injector,
         ssh: SSHSession,
+        private profile: SSHProfile,
     ) {
-        super(injector.get(LogService).create(`ssh-shell-${ssh.profile.options.host}-${ssh.profile.options.port}`))
+        super(injector.get(LogService).create(`ssh-shell-${profile.options.host}-${profile.options.port}`))
         this.ssh = ssh
-        this.profile = ssh.profile
         this.setLoginScriptsOptions(this.profile.options)
+        this.ssh.serviceMessage$.subscribe(m => this.serviceMessage.next(m))
+        this.middleware.push(new UTF8SplitterMiddleware())
+        this.middleware.push(new InputProcessor(profile.options.input))
     }
 
     async start (): Promise<void> {
@@ -41,11 +42,10 @@ export class SSHShellSession extends BaseSession {
         try {
             this.shell = await this.ssh.openShellChannel({ x11: this.profile.options.x11 ?? false })
         } catch (err) {
-            this.emitServiceMessage(colors.bgRed.black(' X ') + ` Remote rejected opening a shell channel: ${err}`)
             if (err.toString().includes('Unable to request X11')) {
                 this.emitServiceMessage('    Make sure `xauth` is installed on the remote side')
             }
-            return
+            throw new Error(`Remote rejected opening a shell channel: ${err}`)
         }
 
         this.open = true
@@ -53,19 +53,11 @@ export class SSHShellSession extends BaseSession {
 
         this.loginScriptProcessor?.executeUnconditionalScripts()
 
-        this.shell.on('greeting', greeting => {
-            this.emitServiceMessage(`Shell greeting: ${greeting}`)
+        this.shell.data$.subscribe(data => {
+            this.emitOutput(Buffer.from(data))
         })
 
-        this.shell.on('banner', banner => {
-            this.emitServiceMessage(`Shell banner: ${banner}`)
-        })
-
-        this.shell.on('data', data => {
-            this.emitOutput(data)
-        })
-
-        this.shell.on('end', () => {
+        this.shell.eof$.subscribe(() => {
             this.logger.info('Shell session ended')
             if (this.open) {
                 this.destroy()
@@ -79,19 +71,22 @@ export class SSHShellSession extends BaseSession {
     }
 
     resize (columns: number, rows: number): void {
-        if (this.shell) {
-            this.shell.setWindow(rows, columns, rows, columns)
-        }
+        this.shell?.resizePTY({
+            columns,
+            rows,
+            pixHeight: 0,
+            pixWidth: 0,
+        })
     }
 
     write (data: Buffer): void {
         if (this.shell) {
-            this.shell.write(data)
+            this.shell.write(new Uint8Array(data))
         }
     }
 
-    kill (signal?: string): void {
-        this.shell?.signal(signal ?? 'TERM')
+    kill (_signal?: string): void {
+        // this.shell?.signal(signal ?? 'TERM')
     }
 
     async destroy (): Promise<void> {
