@@ -1,40 +1,35 @@
-import { Component, Inject } from '@angular/core'
+import { Component } from '@angular/core'
 import { DomSanitizer } from '@angular/platform-browser'
-import { ConfigService } from '../services/config.service'
 import { HomeBaseService } from '../services/homeBase.service'
-import { ToolbarButton, ToolbarButtonProvider } from '../api'
+import { CommandService } from '../services/commands.service'
+import { Command, CommandLocation } from '../api/commands'
 
 /** @hidden */
 @Component({
     selector: 'start-page',
-    template: require('./startPage.component.pug'),
-    styles: [require('./startPage.component.scss')],
+    templateUrl: './startPage.component.pug',
+    styleUrls: ['./startPage.component.scss'],
 })
 export class StartPageComponent {
     version: string
+    commands: Command[] = []
 
     constructor (
-        private config: ConfigService,
         private domSanitizer: DomSanitizer,
         public homeBase: HomeBaseService,
-        @Inject(ToolbarButtonProvider) private toolbarButtonProviders: ToolbarButtonProvider[],
+        commands: CommandService,
     ) {
-    }
-
-    getButtons (): ToolbarButton[] {
-        return this.config.enabledServices(this.toolbarButtonProviders)
-            .map(provider => provider.provide())
-            .reduce((a, b) => a.concat(b))
-            .filter(x => x.showInStartPage ?? true)
-            .filter(x => !!x.click)
-            .sort((a: ToolbarButton, b: ToolbarButton) => (a.weight ?? 0) - (b.weight ?? 0))
+        commands.getCommands({}).then(c => {
+            this.commands = c.filter(x => x.locations?.includes(CommandLocation.StartPage))
+        })
     }
 
     sanitizeIcon (icon?: string): any {
         return this.domSanitizer.bypassSecurityTrustHtml(icon ?? '')
     }
 
-    buttonsTrackBy (btn: ToolbarButton): any {
-        return btn.title + btn.icon
+    // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
+    buttonsTrackBy (_, btn: Command): any {
+        return btn.label + btn.icon
     }
 }

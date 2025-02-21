@@ -1,3 +1,4 @@
+import { marker as _ } from '@biesbjerg/ngx-translate-extract-marker'
 import slugify from 'slugify'
 import { v4 as uuidv4 } from 'uuid'
 import { Injectable } from '@angular/core'
@@ -15,7 +16,7 @@ export interface SplitLayoutProfile extends Profile {
 @Injectable({ providedIn: 'root' })
 export class SplitLayoutProfilesService extends ProfileProvider<SplitLayoutProfile> {
     id = 'split-layout'
-    name = 'Saved layout'
+    name = _('Saved layout')
     configDefaults = {
         options: {
             recoveryToken: null,
@@ -37,12 +38,12 @@ export class SplitLayoutProfilesService extends ProfileProvider<SplitLayoutProfi
         return this.splitTabRecoveryProvider.recover(profile.options.recoveryToken)
     }
 
-    getDescription (_: SplitLayoutProfile): string {
+    getDescription (): string {
         return ''
     }
 
     async createProfile (tab: SplitTabComponent, name: string): Promise<void> {
-        const token = await tab.getRecoveryToken()
+        const token = await tab.getRecoveryToken({ includeState: false })
         const profile: PartialProfile<SplitLayoutProfile> = {
             id: `${this.id}:custom:${slugify(name)}:${uuidv4()}`,
             type: this.id,

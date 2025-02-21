@@ -11,7 +11,8 @@ import { LinkHandler } from './api'
 @Injectable()
 export class URLHandler extends LinkHandler {
     // From https://urlregex.com/
-    regex = /((([A-Za-z]{3,9}:(?:\/\/)?)(?:[\-;:&=\+\$,\w]+@)?[A-Za-z0-9\.\-]+|(?:www\.|[\-;:&=\+\$,\w]+@)[A-Za-z0-9\.\-]+)((:((6553[0-5])|(655[0-2][0-9])|(65[0-4][0-9]{2})|(6[0-4][0-9]{3})|([1-5][0-9]{4})|([0-5]{1,5})|([0-9]{1,4})))?(?:\/[\+~%\/\.\w\-_]*)?\??(?:[\-\+=&;%@\.\w_]*)#?(?:[\.\!\/\\\w]*))?)/
+    // with "-" added to last group (https://github.com/Eugeny/tabby/issues/5611)
+    regex = /((([A-Za-z]{3,9}:(?:\/\/)?)(?:[\-;:&=\+\$,\w]+@)?[A-Za-z0-9\.\-]+|(?:www\.|[\-;:&=\+\$,\w]+@)[A-Za-z0-9\.\-]+)((:((6553[0-5])|(655[0-2][0-9])|(65[0-4][0-9]{2})|(6[0-4][0-9]{3})|([1-5][0-9]{4})|([0-5]{1,5})|([0-9]{1,4})))?(?:\/[\+~%\/\.\w\-_]*)?\??(?:[\-\+=&;%@\.\w_]*)#?(?:[\.\!\/\\\w-]*))?)/
 
     priority = 5
 
@@ -64,7 +65,7 @@ export class BaseFileHandler extends LinkHandler {
         }
     }
 
-    async convert (uri: string, tab?: BaseTerminalTabComponent): Promise<string> {
+    async convert (uri: string, tab?: BaseTerminalTabComponent<any>): Promise<string> {
         let p = untildify(uri)
         if (!path.isAbsolute(p) && tab) {
             const cwd = await tab.session?.getWorkingDirectory()
@@ -101,7 +102,7 @@ export class WindowsFileHandler extends BaseFileHandler {
         super(toastr, platform)
     }
 
-    convert (uri: string, tab?: BaseTerminalTabComponent): Promise<string> {
+    convert (uri: string, tab?: BaseTerminalTabComponent<any>): Promise<string> {
         const sanitizedUri = uri.replace(/"/g, '')
         return super.convert(sanitizedUri, tab)
     }

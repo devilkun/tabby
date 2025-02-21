@@ -1,17 +1,21 @@
 import { Component, Input, Output, EventEmitter } from '@angular/core'
+import { TranslateService } from '@ngx-translate/core'
 import { FileDownload, FileTransfer, PlatformService } from '../api/platform'
 
 /** @hidden */
 @Component({
     selector: 'transfers-menu',
-    template: require('./transfersMenu.component.pug'),
-    styles: [require('./transfersMenu.component.scss')],
+    templateUrl: './transfersMenu.component.pug',
+    styleUrls: ['./transfersMenu.component.scss'],
 })
 export class TransfersMenuComponent {
     @Input() transfers: FileTransfer[]
     @Output() transfersChange = new EventEmitter<FileTransfer[]>()
 
-    constructor (private platform: PlatformService) { }
+    constructor (
+        private platform: PlatformService,
+        private translate: TranslateService,
+    ) { }
 
     isDownload (transfer: FileTransfer): boolean {
         return transfer instanceof FileDownload
@@ -40,8 +44,11 @@ export class TransfersMenuComponent {
         if (this.transfers.some(x => !x.isComplete())) {
             if ((await this.platform.showMessageBox({
                 type: 'warning',
-                message: 'There are active file transfers',
-                buttons: ['Abort all', 'Do not abort'],
+                message: this.translate.instant('There are active file transfers'),
+                buttons: [
+                    this.translate.instant('Abort all'),
+                    this.translate.instant('Do not abort'),
+                ],
                 defaultId: 1,
                 cancelId: 1,
             })).response === 1) {

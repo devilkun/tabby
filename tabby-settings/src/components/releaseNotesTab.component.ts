@@ -1,8 +1,9 @@
 /* eslint-disable @typescript-eslint/explicit-module-boundary-types */
+import { marker as _ } from '@biesbjerg/ngx-translate-extract-marker'
 import axios from 'axios'
-import marked from 'marked'
-import { Component } from '@angular/core'
-import { BaseTabComponent } from 'tabby-core'
+import * as marked from '../../node_modules/marked/src/marked'
+import { Component, Injector } from '@angular/core'
+import { BaseTabComponent, TranslateService } from 'tabby-core'
 
 export interface Release {
     name: string
@@ -14,16 +15,16 @@ export interface Release {
 /** @hidden */
 @Component({
     selector: 'release-notes-tab',
-    template: require('./releaseNotesTab.component.pug'),
-    styles: [require('./releaseNotesTab.component.scss')],
+    templateUrl: './releaseNotesTab.component.pug',
+    styleUrls: ['./releaseNotesTab.component.scss'],
 })
 export class ReleaseNotesComponent extends BaseTabComponent {
     releases: Release[] = []
     lastPage = 1
 
-    constructor () {
-        super()
-        this.setTitle('Release notes')
+    constructor (translate: TranslateService, injector: Injector) {
+        super(injector)
+        this.setTitle(translate.instant(_('Release notes')))
         this.loadReleases(1)
     }
 
@@ -35,7 +36,7 @@ export class ReleaseNotesComponent extends BaseTabComponent {
         this.releases = this.releases.concat(response.data.map(r => ({
             name: r.name,
             version: r.tag_name,
-            content: marked(r.body),
+            content: marked.marked(r.body),
             date: new Date(r.created_at),
         })))
         this.lastPage = page

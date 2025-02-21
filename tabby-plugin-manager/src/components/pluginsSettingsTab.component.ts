@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/explicit-module-boundary-types */
+import { marker as _ } from '@biesbjerg/ngx-translate-extract-marker'
 import { BehaviorSubject, Observable, debounceTime, distinctUntilChanged, first, tap, flatMap, map } from 'rxjs'
 import semverGt from 'semver/functions/gt'
 
@@ -10,16 +11,19 @@ enum BusyState { Installing = 'Installing', Uninstalling = 'Uninstalling' }
 
 const FORCE_ENABLE = ['tabby-core', 'tabby-settings', 'tabby-electron', 'tabby-web', 'tabby-plugin-manager']
 
+_('Search plugins')
+
 /** @hidden */
 @Component({
-    template: require('./pluginsSettingsTab.component.pug'),
-    styles: [require('./pluginsSettingsTab.component.scss')],
+    templateUrl: './pluginsSettingsTab.component.pug',
+    styleUrls: ['./pluginsSettingsTab.component.scss'],
 })
 export class PluginsSettingsTabComponent {
     BusyState = BusyState
     @Input() availablePlugins$: Observable<PluginInfo[]>
     @Input() availablePluginsQuery$ = new BehaviorSubject<string>('')
     @Input() availablePluginsReady = false
+    @Input() installedPluginsQuery$ = new BehaviorSubject<string>('')
     @Input() knownUpgrades: Record<string, PluginInfo|null> = {}
     @Input() busy = new Map<string, BusyState>()
     @Input() erroredPlugin: string
@@ -27,10 +31,14 @@ export class PluginsSettingsTabComponent {
 
     @HostBinding('class.content-box') true
 
+    installedPlugins$: PluginInfo[] = []
+    installedFilter = ''
+    availableFilter = ''
+
     constructor (
         private config: ConfigService,
         private platform: PlatformService,
-        public pluginManager: PluginManagerService
+        public pluginManager: PluginManagerService,
     ) {
     }
 
@@ -45,7 +53,7 @@ export class PluginsSettingsTabComponent {
                     return this.pluginManager.listAvailable(query).pipe(tap(() => {
                         this.availablePluginsReady = true
                     }))
-                })
+                }),
             )
         this.availablePlugins$.pipe(first(), map((plugins: PluginInfo[]) => {
             plugins.sort((a, b) => a.name > b.name ? 1 : -1)
@@ -55,6 +63,18 @@ export class PluginsSettingsTabComponent {
                 this.knownUpgrades[plugin.name] = available.find(x => x.name === plugin.name && semverGt(x.version, plugin.version)) ?? null
             }
         })
+
+        this.installedPluginsQuery$
+            .asObservable()
+            .pipe(
+                debounceTime(200),
+                distinctUntilChanged(),
+                flatMap(query => {
+                    return this.pluginManager.listInstalled(query)
+                }),
+            ).subscribe(plugin => {
+                this.installedPlugins$ = plugin
+            })
     }
 
     openPluginsFolder (): void {
@@ -63,6 +83,10 @@ export class PluginsSettingsTabComponent {
 
     searchAvailable (query: string) {
         this.availablePluginsQuery$.next(query)
+    }
+
+    searchInstalled (query: string) {
+        this.installedPluginsQuery$.next(query)
     }
 
     isAlreadyInstalled (plugin: PluginInfo): boolean {

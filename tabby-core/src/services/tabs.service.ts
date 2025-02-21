@@ -1,3 +1,4 @@
+import deepClone from 'clone-deep'
 import { Injectable, ComponentFactoryResolver, Injector } from '@angular/core'
 import { BaseTabComponent } from '../components/baseTab.component'
 import { TabRecoveryService } from './tabRecovery.service'
@@ -36,6 +37,7 @@ export class TabsService {
         const componentRef = componentFactory.create(this.injector)
         const tab = componentRef.instance
         tab.hostView = componentRef.hostView
+        tab.destroyed$.subscribe(() => componentRef.destroy())
         Object.assign(tab, params.inputs ?? {})
         return tab
     }
@@ -48,7 +50,7 @@ export class TabsService {
         if (!token) {
             return null
         }
-        const dup = await this.tabRecovery.recoverTab(token, true)
+        const dup = await this.tabRecovery.recoverTab(deepClone(token))
         if (dup) {
             return this.create(dup)
         }
