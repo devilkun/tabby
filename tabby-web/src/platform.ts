@@ -2,7 +2,7 @@ import '@vaadin/vaadin-context-menu'
 import copyToClipboard from 'copy-text-to-clipboard'
 import { Injectable, Inject } from '@angular/core'
 import { NgbModal } from '@ng-bootstrap/ng-bootstrap'
-import { PlatformService, ClipboardContent, MenuItemOptions, MessageBoxOptions, MessageBoxResult, FileUpload, FileUploadOptions, FileDownload, HTMLFileUpload } from 'tabby-core'
+import { PlatformService, ClipboardContent, MenuItemOptions, MessageBoxOptions, MessageBoxResult, FileUpload, FileUploadOptions, FileDownload, HTMLFileUpload, DirectoryUpload } from 'tabby-core'
 
 // eslint-disable-next-line no-duplicate-imports
 import type { ContextMenuElement, ContextMenuItem } from '@vaadin/vaadin-context-menu'
@@ -135,13 +135,21 @@ export class WebPlatformService extends PlatformService {
         })
     }
 
+    async startUploadDirectory (_paths?: string[]): Promise<DirectoryUpload> {
+        return new DirectoryUpload()
+    }
+
     setErrorHandler (handler: (_: any) => void): void {
         window.addEventListener('error', handler)
+    }
+
+    async pickDirectory (): Promise<string> {
+        throw new Error('Unsupported')
     }
 }
 
 class HTMLFileDownload extends FileDownload {
-    private buffers: Buffer[] = []
+    private buffers: Uint8Array[] = []
 
     constructor (
         private name: string,
@@ -163,8 +171,8 @@ class HTMLFileDownload extends FileDownload {
         return this.size
     }
 
-    async write (buffer: Buffer): Promise<void> {
-        this.buffers.push(Buffer.from(buffer))
+    async write (buffer: Uint8Array): Promise<void> {
+        this.buffers.push(Uint8Array.from(buffer))
         this.increaseProgress(buffer.length)
         if (this.isComplete()) {
             this.finish()

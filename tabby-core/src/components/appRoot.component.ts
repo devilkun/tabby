@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/explicit-module-boundary-types */
-import { Component, Inject, Input, HostListener, HostBinding, ViewChildren, ViewChild } from '@angular/core'
+import { Component, Input, HostListener, HostBinding, ViewChildren, ViewChild } from '@angular/core'
 import { trigger, style, animate, transition, state } from '@angular/animations'
 import { NgbDropdown, NgbModal } from '@ng-bootstrap/ng-bootstrap'
 import { CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop'
@@ -10,51 +10,62 @@ import { Logger, LogService } from '../services/log.service'
 import { ConfigService } from '../services/config.service'
 import { ThemesService } from '../services/themes.service'
 import { UpdaterService } from '../services/updater.service'
+import { CommandService } from '../services/commands.service'
 
 import { BaseTabComponent } from './baseTab.component'
 import { SafeModeModalComponent } from './safeModeModal.component'
 import { TabBodyComponent } from './tabBody.component'
-import { AppService, FileTransfer, HostWindowService, PlatformService, ToolbarButton, ToolbarButtonProvider } from '../api'
+import { SplitTabComponent } from './splitTab.component'
+import { AppService, Command, CommandLocation, FileTransfer, HostWindowService, PlatformService } from '../api'
+
+function makeTabAnimation (dimension: string, size: number) {
+    return [
+        state('in', style({
+            'flex-basis': '{{size}}',
+            [dimension]: '{{size}}',
+        }), {
+            params: { size: `${size}px` },
+        }),
+        transition(':enter', [
+            style({
+                'flex-basis': '1px',
+                [dimension]: '1px',
+            }),
+            animate('250ms ease-out', style({
+                'flex-basis': '{{size}}',
+                [dimension]: '{{size}}',
+            })),
+        ]),
+        transition(':leave', [
+            style({
+                'flex-basis': 'auto',
+                'padding-left': '*',
+                'padding-right': '*',
+                [dimension]: '*',
+            }),
+            animate('250ms ease-in-out', style({
+                'padding-left': 0,
+                'padding-right': 0,
+                [dimension]: '0',
+            })),
+        ]),
+    ]
+}
 
 /** @hidden */
 @Component({
     selector: 'app-root',
-    template: require('./appRoot.component.pug'),
-    styles: [require('./appRoot.component.scss')],
+    templateUrl: './appRoot.component.pug',
+    styleUrls: ['./appRoot.component.scss'],
     animations: [
-        trigger('animateTab', [
-            state('in', style({
-                'flex-basis': '200px',
-                width: '200px',
-            })),
-            transition(':enter', [
-                style({
-                    'flex-basis': '1px',
-                    width: '1px',
-                }),
-                animate('250ms ease-in-out', style({
-                    'flex-basis': '200px',
-                    width: '200px',
-                })),
-            ]),
-            transition(':leave', [
-                style({
-                    'flex-basis': '200px',
-                    width: '200px',
-                }),
-                animate('250ms ease-in-out', style({
-                    'flex-basis': '1px',
-                    width: '1px',
-                })),
-            ]),
-        ]),
+        trigger('animateTab', makeTabAnimation('width', 200)),
     ],
 })
 export class AppRootComponent {
     Platform = Platform
     @Input() ready = false
-    @Input() leftToolbarButtons: ToolbarButton[]
-    @Input() rightToolbarButtons: ToolbarButton[]
+    @Input() leftToolbarButtons: Command[]
+    @Input() rightToolbarButtons: Command[]
     @HostBinding('class.platform-win32') platformClassWindows = process.platform === 'win32'
     @HostBinding('class.platform-darwin') platformClassMacOS = process.platform === 'darwin'
     @HostBinding('class.platform-linux') platformClassLinux = process.platform === 'linux'
@@ -68,17 +79,18 @@ export class AppRootComponent {
 
     constructor (
         private hotkeys: HotkeysService,
-        private updater: UpdaterService,
+        private commands: CommandService,
+        public updater: UpdaterService,
         public hostWindow: HostWindowService,
         public hostApp: HostAppService,
         public config: ConfigService,
         public app: AppService,
-        @Inject(ToolbarButtonProvider) private toolbarButtonProviders: ToolbarButtonProvider[],
         platform: PlatformService,
         log: LogService,
         ngbModal: NgbModal,
         _themes: ThemesService,
     ) {
+        // document.querySelector('app-root')?.remove()
         this.logger = log.create('main')
         this.logger.info('v', platform.getAppVersion())
 
@@ -110,6 +122,16 @@ export class AppRootComponent {
                 }
                 if (hotkey === 'duplicate-tab') {
                     this.app.duplicateTab(this.app.activeTab)
+                }
+                if (hotkey === 'restart-tab') {
+                    this.app.duplicateTab(this.app.activeTab)
+                    this.app.closeTab(this.app.activeTab, true)
+                }
+                if (hotkey === 'explode-tab' && this.app.activeTab instanceof SplitTabComponent) {
+                    this.app.explodeTab(this.app.activeTab)
+                }
+                if (hotkey === 'combine-tabs' && this.app.activeTab instanceof SplitTabComponent) {
+                    this.app.combineTabsInto(this.app.activeTab)
                 }
             }
             if (hotkey === 'reopen-tab') {
@@ -150,9 +172,9 @@ export class AppRootComponent {
             this.activeTransfersDropdown.open()
         })
 
-        config.ready$.toPromise().then(() => {
-            this.leftToolbarButtons = this.getToolbarButtons(false)
-            this.rightToolbarButtons = this.getToolbarButtons(true)
+        config.ready$.toPromise().then(async () => {
+            this.leftToolbarButtons = await this.getToolbarButtons(false)
+            this.rightToolbarButtons = await this.getToolbarButtons(true)
 
             setInterval(() => {
                 if (this.config.store.enableAutomaticUpdates) {
@@ -185,17 +207,21 @@ export class AppRootComponent {
         return this.config.store.appearance.tabsLocation === 'left' || this.config.store.appearance.tabsLocation === 'right'
     }
 
-    async generateButtonSubmenu (button: ToolbarButton) {
-        if (button.submenu) {
-            button.submenuItems = await button.submenu()
+    get targetTabSize (): any {
+        if (this.hasVerticalTabs()) {
+            return '*'
         }
-    }
-
-    hasIcons (submenuItems: ToolbarButton[]): boolean {
-        return submenuItems.some(x => !!x.icon)
+        return this.config.store.appearance.flexTabs ? '*' : '200px'
     }
 
     onTabsReordered (event: CdkDragDrop<BaseTabComponent[]>) {
+        const tab: BaseTabComponent = event.item.data
+        if (!this.app.tabs.includes(tab)) {
+            if (tab.parent instanceof SplitTabComponent) {
+                tab.parent.removeTab(tab)
+                this.app.wrapAndAddTab(tab)
+            }
+        }
         moveItemInArray(this.app.tabs, event.previousIndex, event.currentIndex)
         this.app.emitTabsChanged()
     }
@@ -206,14 +232,27 @@ export class AppRootComponent {
         }
     }
 
-    private getToolbarButtons (aboveZero: boolean): ToolbarButton[] {
-        let buttons: ToolbarButton[] = []
-        this.config.enabledServices(this.toolbarButtonProviders).forEach(provider => {
-            buttons = buttons.concat(provider.provide())
-        })
-        return buttons
-            .filter(x => x.showInToolbar ?? true)
-            .filter(button => (button.weight ?? 0) > 0 === aboveZero)
-            .sort((a: ToolbarButton, b: ToolbarButton) => (a.weight ?? 0) - (b.weight ?? 0))
+    @HostBinding('class.vibrant') get isVibrant () {
+        return this.config.store?.appearance.vibrancy
+    }
+
+    private async getToolbarButtons (aboveZero: boolean): Promise<Command[]> {
+        return (await this.commands.getCommands({ tab: this.app.activeTab ?? undefined }))
+            .filter(x => x.locations?.includes(aboveZero ? CommandLocation.RightToolbar : CommandLocation.LeftToolbar))
+    }
+
+    toggleMaximize (): void {
+        this.hostWindow.toggleMaximize()
+    }
+
+    protected isTitleBarNeeded (): boolean {
+        return (
+            this.config.store.appearance.frame === 'full'
+            ||
+                this.hostApp.platform !== Platform.macOS
+                && this.config.store.appearance.frame === 'thin'
+                && this.config.store.appearance.tabsLocation !== 'top'
+                && this.config.store.appearance.tabsLocation !== 'bottom'
+        )
     }
 }

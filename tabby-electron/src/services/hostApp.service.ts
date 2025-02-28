@@ -58,11 +58,8 @@ export class ElectronHostAppService extends HostAppService {
         this.electron.ipcRenderer.send('app:new-window')
     }
 
-    /**
-     * Notifies other windows of config file changes
-     */
-    broadcastConfigChange (configStore: Record<string, any>): void {
-        this.electron.ipcRenderer.send('app:config-change', configStore)
+    async saveConfig (data: string): Promise<void> {
+        await this.electron.ipcRenderer.invoke('app:save-config', data)
     }
 
     emitReady (): void {
@@ -74,7 +71,11 @@ export class ElectronHostAppService extends HostAppService {
         if (isPortable) {
             this.electron.app.relaunch({ execPath: process.env.PORTABLE_EXECUTABLE_FILE })
         } else {
-            this.electron.app.relaunch()
+            let args: string[] = []
+            if (this.platform === Platform.Linux) {
+                args = ['--no-sandbox']
+            }
+            this.electron.app.relaunch({ args })
         }
         this.electron.app.exit()
     }

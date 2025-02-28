@@ -1,14 +1,14 @@
 import { Injectable } from '@angular/core'
-import { ProfileProvider, NewTabParameters, PartialProfile } from 'tabby-core'
+import { NewTabParameters, PartialProfile, TranslateService, QuickConnectProfileProvider } from 'tabby-core'
 import { TelnetProfileSettingsComponent } from './components/telnetProfileSettings.component'
 import { TelnetTabComponent } from './components/telnetTab.component'
 import { TelnetProfile } from './session'
 
 @Injectable({ providedIn: 'root' })
-export class TelnetProfilesService extends ProfileProvider<TelnetProfile> {
+export class TelnetProfilesService extends QuickConnectProfileProvider<TelnetProfile> {
     id = 'telnet'
     name = 'Telnet'
-    supportsQuickConnect = false
+    supportsQuickConnect = true
     settingsComponent = TelnetProfileSettingsComponent
     configDefaults = {
         options: {
@@ -19,15 +19,19 @@ export class TelnetProfilesService extends ProfileProvider<TelnetProfile> {
             inputNewlines: null,
             outputNewlines: 'crlf',
             scripts: [],
+            input: { backspace: 'backspace' },
         },
+        clearServiceMessagesOnConnect: false,
     }
+
+    constructor (private translate: TranslateService) { super() }
 
     async getBuiltinProfiles (): Promise<PartialProfile<TelnetProfile>[]> {
         return [
             {
                 id: `telnet:template`,
                 type: 'telnet',
-                name: 'Telnet session',
+                name: this.translate.instant('Telnet session'),
                 icon: 'fas fa-network-wired',
                 options: {
                     host: '',
@@ -43,7 +47,7 @@ export class TelnetProfilesService extends ProfileProvider<TelnetProfile> {
             {
                 id: `socket:template`,
                 type: 'telnet',
-                name: 'Raw socket connection',
+                name: this.translate.instant('Raw socket connection'),
                 icon: 'fas fa-network-wired',
                 options: {
                     host: '',
@@ -91,5 +95,13 @@ export class TelnetProfilesService extends ProfileProvider<TelnetProfile> {
                 outputNewlines: 'crlf',
             },
         }
+    }
+
+    intoQuickConnectString (profile: TelnetProfile): string | null {
+        let s = profile.options.host
+        if (profile.options.port !== 23) {
+            s = `${s}:${profile.options.port}`
+        }
+        return s
     }
 }

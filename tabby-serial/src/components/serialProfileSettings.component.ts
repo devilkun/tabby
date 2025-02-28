@@ -7,7 +7,7 @@ import { SerialService } from '../services/serial.service'
 
 /** @hidden */
 @Component({
-    template: require('./serialProfileSettings.component.pug'),
+    templateUrl: './serialProfileSettings.component.pug',
 })
 export class SerialProfileSettingsComponent implements ProfileSettingsComponent<SerialProfile> {
     profile: SerialProfile
@@ -29,7 +29,7 @@ export class SerialProfileSettingsComponent implements ProfileSettingsComponent<
         map((q: string) => [
             null,
             ...BAUD_RATES.filter(x => !q || x.toString().startsWith(q)),
-        ])
+        ]),
     )
 
     portsFormatter = port => {

@@ -63,22 +63,24 @@ export abstract class FileTransfer {
 }
 
 export abstract class FileDownload extends FileTransfer {
-    abstract write (buffer: Buffer): Promise<void>
+    abstract write (buffer: Uint8Array): Promise<void>
 }
 
 export abstract class FileUpload extends FileTransfer {
-    abstract read (): Promise<Buffer>
+    abstract read (): Promise<Uint8Array>
 
-    async readAll (): Promise<Buffer> {
-        const buffers: Buffer[] = []
+    async readAll (): Promise<Uint8Array> {
+        const result = new Uint8Array(this.getSize())
+        let pos = 0
         while (true) {
             const buf = await this.read()
             if (!buf.length) {
                 break
             }
-            buffers.push(Buffer.from(buf))
+            result.set(buf, pos)
+            pos += buf.length
         }
-        return Buffer.concat(buffers)
+        return result
     }
 }
 
@@ -86,14 +88,38 @@ export interface FileUploadOptions {
     multiple: boolean
 }
 
+export class DirectoryUpload {
+    private childrens: (FileUpload|DirectoryUpload)[] = []
+
+    constructor (private name = '') {
+        // Just set name for now.
+    }
+
+    getName (): string {
+        return this.name
+    }
+
+    getChildrens (): (FileUpload|DirectoryUpload)[] {
+        return this.childrens
+    }
+
+    pushChildren (item: FileUpload|DirectoryUpload): void {
+        this.childrens.push(item)
+    }
+}
+
+export type PlatformTheme = 'light'|'dark'
+
 export abstract class PlatformService {
     supportsWindowControls = false
 
     get fileTransferStarted$ (): Observable<FileTransfer> { return this.fileTransferStarted }
     get displayMetricsChanged$ (): Observable<void> { return this.displayMetricsChanged }
+    get themeChanged$ (): Observable<PlatformTheme> { return this.themeChanged }
 
     protected fileTransferStarted = new Subject<FileTransfer>()
     protected displayMetricsChanged = new Subject<void>()
+    protected themeChanged = new Subject<PlatformTheme>()
 
     abstract readClipboard (): string
     abstract setClipboard (content: ClipboardContent): void
@@ -102,23 +128,54 @@ export abstract class PlatformService {
 
     abstract startDownload (name: string, mode: number, size: number): Promise<FileDownload|null>
     abstract startUpload (options?: FileUploadOptions): Promise<FileUpload[]>
+    abstract startUploadDirectory (paths?: string[]): Promise<DirectoryUpload>
 
-    startUploadFromDragEvent (event: DragEvent, multiple = false): FileUpload[] {
-        const result: FileUpload[] = []
+    async startUploadFromDragEvent (event: DragEvent, multiple = false): Promise<DirectoryUpload> {
+        const result = new DirectoryUpload()
+
         if (!event.dataTransfer) {
-            return []
+            return Promise.resolve(result)
         }
+
+        const traverseFileTree = (item: any, root: DirectoryUpload = result): Promise<void> => {
+            return new Promise((resolve) => {
+                if (item.isFile) {
+                    item.file((file: File) => {
+                        const transfer = new HTMLFileUpload(file)
+                        this.fileTransferStarted.next(transfer)
+                        root.pushChildren(transfer)
+                        resolve()
+                    })
+                } else if (item.isDirectory) {
+                    const dirReader = item.createReader()
+                    const childrenFolder = new DirectoryUpload(item.name)
+                    dirReader.readEntries(async (entries: any[]) => {
+                        for (const entry of entries) {
+                            await traverseFileTree(entry, childrenFolder)
+                        }
+                        resolve()
+                    })
+                    root.pushChildren(childrenFolder)
+                } else {
+                    resolve()
+                }
+            })
+        }
+
+        const promises: Promise<void>[] = []
+
+        const items = event.dataTransfer.items
         // eslint-disable-next-line @typescript-eslint/prefer-for-of
-        for (let i = 0; i < event.dataTransfer.files.length; i++) {
-            const file = event.dataTransfer.files[i]
-            const transfer = new HTMLFileUpload(file)
-            this.fileTransferStarted.next(transfer)
-            result.push(transfer)
-            if (!multiple) {
-                break
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i].webkitGetAsEntry()
+            if (item) {
+                promises.push(traverseFileTree(item))
+                if (!multiple) {
+                    break
+                }
             }
         }
-        return result
+        return Promise.all(promises).then(() => result)
     }
 
     getConfigPath (): string|null {
@@ -145,7 +202,7 @@ export abstract class PlatformService {
         throw new Error('Not implemented')
     }
 
-    exec (app: string, argv: string[]): void {
+    async exec (app: string, argv: string[]): Promise<void> {
         throw new Error('Not implemented')
     }
 
@@ -169,6 +226,10 @@ export abstract class PlatformService {
         throw new Error('Not implemented')
     }
 
+    getTheme (): PlatformTheme {
+        return 'dark'
+    }
+
     abstract getOSRelease (): string
     abstract getAppVersion (): string
     abstract openExternal (url: string): void
@@ -176,6 +237,7 @@ export abstract class PlatformService {
     abstract setErrorHandler (handler: (_: any) => void): void
     abstract popupContextMenu (menu: MenuItemOptions[], event?: MouseEvent): void
     abstract showMessageBox (options: MessageBoxOptions): Promise<MessageBoxResult>
+    abstract pickDirectory (): Promise<string>
     abstract quit (): void
 }
 
@@ -201,12 +263,12 @@ export class HTMLFileUpload extends FileUpload {
         return this.file.size
     }
 
-    async read (): Promise<Buffer> {
+    async read (): Promise<Uint8Array> {
         const result: any = await this.reader.read()
         if (result.done || !result.value) {
-            return Buffer.from('')
+            return new Uint8Array(0)
         }
-        const chunk = Buffer.from(result.value)
+        const chunk = new Uint8Array(result.value)
         this.increaseProgress(chunk.length)
         return chunk
     }

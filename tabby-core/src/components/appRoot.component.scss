@@ -10,11 +10,12 @@
     cursor: default;
     animation: 0.5s ease-out fadeIn;
     transition: 0.25s background;
+
+    --tabs-height: calc(38px * var(--spaciness));
+    --side-tab-width: calc(200px * var(--spaciness));
 }
 
-$tabs-height: 38px;
 $tab-border-radius: 4px;
-$side-tab-width: 200px;
 
 .wrap {
   display: flex;
@@ -34,53 +35,68 @@ $side-tab-width: 200px;
         flex-direction: column;
     }
 
-    &.tabs-on-side {
+    &.tabs-on-right {
         flex-direction: row-reverse;
-
-        &.tabs-on-top {
-            flex-direction: row;
-        }
     }
 
+    &.tabs-on-left {
+        flex-direction: row;
+    }
 }
 
-.content.tabs-on-side > .tab-bar {
+.content.tabs-on-left > .tab-bar, .content.tabs-on-right > .tab-bar {
     height: 100%;
-    width: $side-tab-width;
+    width: var(--side-tab-width);
     overflow-y: auto;
     overflow-x: hidden;
     flex-direction: column;
     background: rgba(0, 0, 0, 0.25);
 
     .tabs {
-        width: $side-tab-width;
+        width: var(--side-tab-width);
         flex: none;
         flex-direction: column;
 
         tab-header {
-            flex: 0 0 $tabs-height;
+            flex: 0 0 var(--tabs-height);
         }
     }
 
-    .drag-space {
+    .btn-space {
         flex: auto;
     }
 
     &>.inset {
         opacity: 0;
     }
+
+    ::ng-deep tab-header {
+        width: 100% !important;
+    }
 }
 
+.content.tabs-on-left > .tab-bar.tab-bar-no-controls-overlay, .content.tabs-titlebar-enabled {
+    .tabs {
+        padding-top: 0 !important;
+    }
+}
+
+.content.tabs-on-right > .tab-bar {
+    .tabs {
+        // Account for WCO on Windows.
+        padding-top: 36px;
+    }
+}
 
 .tab-bar {
     flex: none;
-    height: $tabs-height;
+    height: var(--tabs-height);
     display: flex;
     width: 100%;
 
     .btn-tab-bar {
-        line-height: $tabs-height + 2px;
-        height: $tabs-height;
+        line-height: calc(var(--tabs-height) + 2px);
+        height: var(--tabs-height);
         cursor: pointer;
 
         display: flex;
@@ -88,7 +104,7 @@ $side-tab-width: 200px;
         padding: 0 12px;
         flex: 0 0 auto;
         border-bottom: 2px solid transparent;
-        transition: 0.25s all;
+        transition: 0.125s all ease-out;
         font-size: 12px;
 
         text-transform: uppercase;
@@ -110,20 +126,33 @@ $side-tab-width: 200px;
         min-width: 0;
     }
 
-    &>.drag-space {
+    &>.btn-space {
         min-width: 1px;
         flex: 1 0 1%;
-        margin-top: 2px; // for window resizing
-        -webkit-app-region: drag;
+
+        .tabs-on-top & {
+            margin-top: 2px; // for window resizing
+        }
+
+        &.drag {
+            -webkit-app-region: drag;
+        }
 
         &.persistent {
-          min-width: 72px; // 2 x 36 px height, ie 2 squares
+        //   min-width: 72px; // 2 x 36 px height, ie 2 squares
+        // Given WCO on Windows, the min-width of the window buttons is about 138px.
+            min-width: 138px;
         }
     }
 
+    &>.window-controls-spacer {
+        min-width: 138px;
+        height: 100%;
+    }
+
     & > .inset {
-        width: 85px;
-        height: $tabs-height;
+        width: calc(70px + 15px * var(--spaciness));
+        height: var(--tabs-height);
         flex: none;
         -webkit-app-region: drag;
     }
@@ -170,18 +199,27 @@ hotkey-hint {
 
 ::ng-deep .btn-tab-bar svg,
 ::ng-deep .btn-tab-bar + .dropdown-menu svg {
-    width: 22px;
-    height: 16px;
+    width: calc(22px * var(--spaciness));
+    height: calc(16px * var(--spaciness));
     fill: white;
     fill-opacity: 0.75;
 }
 
-.icon-wrapper {
-    display: flex;
-    width: 16px;
-    height: 17px;
-}
-
 ::ng-deep .btn-update svg {
     fill: cyan;
+}
+
+::ng-deep .broadcast-status-warning {
+    background: red;
+    position: absolute;
+    top: 0;
+    left: 50%;
+    padding: 5px 10px;
+    color: black;
+    border-radius: 0 0 5px 5px;
+
+    width: 300px;
+    margin-left: -150px;
+    text-align: center;
+    font-weight: bold;
 }

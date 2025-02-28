@@ -1,8 +1,7 @@
-import type { AppUpdater } from 'electron-updater'
 import { Injectable } from '@angular/core'
 import axios from 'axios'
 
-import { Logger, LogService, ConfigService, UpdaterService, PlatformService } from 'tabby-core'
+import { Logger, LogService, ConfigService, UpdaterService, PlatformService, TranslateService } from 'tabby-core'
 import { ElectronService } from '../services/electron.service'
 
 const UPDATES_URL = 'https://api.github.com/repos/eugeny/tabby/releases/latest'
@@ -13,53 +12,44 @@ export class ElectronUpdaterService extends UpdaterService {
     private downloaded: Promise<boolean>
     private electronUpdaterAvailable = true
     private updateURL: string
-    private autoUpdater: AppUpdater
 
     constructor (
         log: LogService,
         config: ConfigService,
+        private translate: TranslateService,
         private platform: PlatformService,
         private electron: ElectronService,
     ) {
         super()
         this.logger = log.create('updater')
 
-        if (process.platform === 'linux') {
+        if (process.platform === 'linux' || process.env.PORTABLE_EXECUTABLE_FILE) {
             this.electronUpdaterAvailable = false
             return
         }
 
-        this.autoUpdater = electron.remote.require('electron-updater').autoUpdater
-        this.autoUpdater.autoDownload = true
-        this.autoUpdater.autoInstallOnAppQuit = false
-
-        this.autoUpdater.on('update-available', () => {
+        this.electron.ipcRenderer.on('updater:update-available', () => {
             this.logger.info('Update available')
         })
 
-        this.autoUpdater.on('update-not-available', () => {
+        this.electron.ipcRenderer.on('updater:update-not-available', () => {
             this.logger.info('No updates')
         })
 
-        this.autoUpdater.on('error', err => {
+        this.electron.ipcRenderer.on('updater:error', err => {
             this.logger.error(err)
             this.electronUpdaterAvailable = false
         })
 
         this.downloaded = new Promise<boolean>(resolve => {
-            this.autoUpdater.once('update-downloaded', () => resolve(true))
+            this.electron.ipcRenderer.once('updater:update-downloaded', () => resolve(true))
         })
 
         config.ready$.toPromise().then(() => {
             if (config.store.enableAutomaticUpdates && this.electronUpdaterAvailable && !process.env.TABBY_DEV) {
                 this.logger.debug('Checking for updates')
                 try {
-                    this.autoUpdater.setFeedURL({
-                        provider: 'github',
-                        repo: 'tabby',
-                        owner: 'eugeny',
-                    })
-                    this.autoUpdater.checkForUpdates()
+                    this.electron.ipcRenderer.send('updater:check-for-updates')
                 } catch (e) {
                     this.electronUpdaterAvailable = false
                     this.logger.info('Electron updater unavailable, falling back', e)
@@ -86,26 +76,26 @@ export class ElectronUpdaterService extends UpdaterService {
                     reject(err)
                 }
                 cancel = () => {
-                    this.autoUpdater.off('error', onError)
-                    this.autoUpdater.off('update-not-available', onNoUpdate)
-                    this.autoUpdater.off('update-available', onUpdate)
+                    this.electron.ipcRenderer.off('updater:error', onError)
+                    this.electron.ipcRenderer.off('updater:update-not-available', onNoUpdate)
+                    this.electron.ipcRenderer.off('updater:update-available', onUpdate)
                 }
-                this.autoUpdater.on('error', onError)
-                this.autoUpdater.on('update-not-available', onNoUpdate)
-                this.autoUpdater.on('update-available', onUpdate)
+                this.electron.ipcRenderer.on('updater:error', onError)
+                this.electron.ipcRenderer.on('updater:update-not-available', onNoUpdate)
+                this.electron.ipcRenderer.on('updater:update-available', onUpdate)
                 try {
-                    this.autoUpdater.checkForUpdates()
+                    this.electron.ipcRenderer.send('updater:check-for-updates')
                 } catch (e) {
                     this.electronUpdaterAvailable = false
                     this.logger.info('Electron updater unavailable, falling back', e)
                 }
             })
 
-            this.autoUpdater.on('update-available', () => {
+            this.electron.ipcRenderer.on('updater:update-available', () => {
                 this.logger.info('Update available')
             })
 
-            this.autoUpdater.once('update-not-available', () => {
+            this.electron.ipcRenderer.once('updater:update-not-available', () => {
                 this.logger.info('No updates')
             })
 
@@ -132,14 +122,17 @@ export class ElectronUpdaterService extends UpdaterService {
             if ((await this.platform.showMessageBox(
                 {
                     type: 'warning',
-                    message: 'Installing the update will close all tabs and restart Tabby.',
-                    buttons: ['Update', 'Cancel'],
+                    message: this.translate.instant('Installing the update will close all tabs and restart Tabby.'),
+                    buttons: [
+                        this.translate.instant('Update'),
+                        this.translate.instant('Cancel'),
+                    ],
                     defaultId: 0,
                     cancelId: 1,
-                }
+                },
             )).response === 0) {
                 await this.downloaded
-                this.autoUpdater.quitAndInstall()
+                this.electron.ipcRenderer.send('updater:quit-and-install')
             }
         }
     }

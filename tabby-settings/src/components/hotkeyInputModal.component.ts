@@ -1,15 +1,15 @@
 import { Component, Input } from '@angular/core'
 import { trigger, transition, style, animate } from '@angular/animations'
 import { NgbActiveModal } from '@ng-bootstrap/ng-bootstrap'
-import { HotkeysService, BaseComponent, Keystroke } from 'tabby-core'
+import { HotkeysService, BaseComponent, Keystroke, ConfigService } from 'tabby-core'
 
 const INPUT_TIMEOUT = 1000
 
 /** @hidden */
 @Component({
     selector: 'hotkey-input-modal',
-    template: require('./hotkeyInputModal.component.pug'),
-    styles: [require('./hotkeyInputModal.component.scss')],
+    templateUrl: './hotkeyInputModal.component.pug',
+    styleUrls: ['./hotkeyInputModal.component.scss'],
     animations: [
         trigger('animateKey', [
             transition(':enter', [
@@ -45,6 +45,7 @@ export class HotkeyInputModalComponent extends BaseComponent {
     constructor (
         private modalInstance: NgbActiveModal,
         public hotkeys: HotkeysService,
+        public config: ConfigService,
     ) {
         super()
         this.hotkeys.clearCurrentKeystrokes()

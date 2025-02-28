@@ -1,6 +1,6 @@
 {
   "name": "tabby-ssh",
-  "version": "1.0.165-nightly.0",
+  "version": "1.0.197-nightly.1",
   "description": "SSH connections for Tabby",
   "keywords": [
     "tabby-builtin-plugin"
@@ -11,36 +11,37 @@
     "build": "webpack --progress --color",
     "watch": "webpack --progress --color --watch",
     "postinstall": "run-script-os",
-    "postinstall:darwin:linux": "exit",
-    "postinstall:win32": "xcopy /i /y ..\\node_modules\\ssh2\\util\\pagent.exe util\\"
+    "postinstall:darwin:linux": "exit"
   },
   "files": [
     "dist",
-    "util/pagent.exe"
+    "typings"
   ],
   "author": "Eugene Pankov",
   "license": "MIT",
   "devDependencies": {
-    "@types/node": "16.0.1",
-    "@types/ssh2": "^0.5.46",
+    "@types/node": "20.3.1",
     "ansi-colors": "^4.1.1",
-    "sshpk": "Eugeny/node-sshpk#d92ddb8def1778e876703f90cd6ff2c90900f390",
     "strip-ansi": "^7.0.0"
   },
   "dependencies": {
+    "@luminati-io/socksv5": "^0.0.7",
     "run-script-os": "^1.1.3",
-    "@luminati-io/socksv5": "^0.0.7"
+    "tmp-promise": "^3.0.3"
   },
   "peerDependencies": {
-    "@angular/animations": "^9.1.9",
-    "@angular/common": "^9.1.11",
-    "@angular/core": "^9.1.9",
-    "@angular/forms": "^9.1.11",
-    "@angular/platform-browser": "^9.1.11",
-    "@ng-bootstrap/ng-bootstrap": "^6.1.0",
-    "rxjs": "^6.5.5",
+    "@angular/animations": "^15",
+    "@angular/common": "^15",
+    "@angular/core": "^15",
+    "@angular/forms": "^15",
+    "@angular/platform-browser": "^15",
+    "@ng-bootstrap/ng-bootstrap": "^14",
+    "rxjs": "^7",
     "tabby-core": "*",
     "tabby-settings": "*",
     "tabby-terminal": "*"
+  },
+  "resolutions": {
+    "glob": "7.2.3"
   }
 }

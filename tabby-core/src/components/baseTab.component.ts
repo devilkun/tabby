@@ -1,7 +1,8 @@
-import { Observable, Subject, distinctUntilChanged } from 'rxjs'
-import { EmbeddedViewRef, ViewContainerRef, ViewRef } from '@angular/core'
+import { Observable, Subject, BehaviorSubject, distinctUntilChanged, filter, debounceTime } from 'rxjs'
+import { EmbeddedViewRef, Injector, ViewContainerRef, ViewRef } from '@angular/core'
 import { RecoveryToken } from '../api/tabRecovery'
 import { BaseComponent } from './base.component'
+import { ConfigService } from '../services/config.service'
 
 /**
  * Represents an active "process" inside a tab,
@@ -11,9 +12,14 @@ export interface BaseTabProcess {
     name: string
 }
 
+export interface GetRecoveryTokenOptions {
+    includeState: boolean
+}
+
 /**
  * Abstract base class for custom tab components
  */
+// @Component({ template: '' })
 export abstract class BaseTabComponent extends BaseComponent {
     /**
      * Parent tab (usually a SplitTabComponent)
@@ -43,7 +49,16 @@ export abstract class BaseTabComponent extends BaseComponent {
     /**
      * CSS color override for the tab's header
      */
-    color: string|null = null
+    get color (): string|null { return this._color }
+    set color (value: string|null) { this._color = value }
+    private _color: string|null = null
+
+    /**
+     * icon override for the tab's header
+     */
+    get icon (): string|null { return this._icon }
+    set icon (value: string|null) { this._icon = value }
+    private _icon: string|null = null
 
     hasFocus = false
 
@@ -57,31 +72,42 @@ export abstract class BaseTabComponent extends BaseComponent {
     /* @hidden */
     viewContainerEmbeddedRef?: EmbeddedViewRef<any>
 
-    private progressClearTimeout: number
     private titleChange = new Subject<string>()
     private focused = new Subject<void>()
     private blurred = new Subject<void>()
-    private progress = new Subject<number|null>()
-    private activity = new Subject<boolean>()
+    protected visibility = new BehaviorSubject<boolean>(false)
+    protected progress = new BehaviorSubject<number|null>(null)
+    protected activity = new BehaviorSubject<boolean>(false)
     private destroyed = new Subject<void>()
 
     private _destroyCalled = false
 
     get focused$ (): Observable<void> { return this.focused }
     get blurred$ (): Observable<void> { return this.blurred }
+    /* @hidden */
+    get visibility$ (): Observable<boolean> { return this.visibility }
     get titleChange$ (): Observable<string> { return this.titleChange.pipe(distinctUntilChanged()) }
     get progress$ (): Observable<number|null> { return this.progress.pipe(distinctUntilChanged()) }
     get activity$ (): Observable<boolean> { return this.activity }
     get destroyed$ (): Observable<void> { return this.destroyed }
     get recoveryStateChangedHint$ (): Observable<void> { return this.recoveryStateChangedHint }
 
-    protected constructor () {
+    protected config: ConfigService
+
+    protected constructor (injector: Injector) {
         super()
+        this.config = injector.get(ConfigService)
         this.focused$.subscribe(() => {
             this.hasFocus = true
         })
         this.blurred$.subscribe(() => {
             this.hasFocus = false
+        })
+        this.subscribeUntilDestroyed(this.progress.pipe(
+            filter(x => x !== null),
+            debounceTime(5000),
+        ), () => {
+            this.setProgress(null)
         })
     }
 
@@ -99,18 +125,10 @@ export abstract class BaseTabComponent extends BaseComponent {
      */
     setProgress (progress: number|null): void {
         this.progress.next(progress)
-        if (progress) {
-            if (this.progressClearTimeout) {
-                clearTimeout(this.progressClearTimeout)
-            }
-            this.progressClearTimeout = setTimeout(() => {
-                this.setProgress(null)
-            }, 5000) as any
-        }
     }
 
     /**
-     * Shows the acticity marker on the tab header
+     * Shows the activity marker on the tab header
      */
     displayActivity (): void {
         if (!this.hasActivity) {
@@ -120,7 +138,7 @@ export abstract class BaseTabComponent extends BaseComponent {
     }
 
     /**
-     * Removes the acticity marker from the tab header
+     * Removes the activity marker from the tab header
      */
     clearActivity (): void {
         if (this.hasActivity) {
@@ -136,7 +154,7 @@ export abstract class BaseTabComponent extends BaseComponent {
      * @return JSON serializable tab state representation
      *         for your [[TabRecoveryProvider]] to parse
      */
-    async getRecoveryToken (): Promise<RecoveryToken|null> {
+    async getRecoveryToken (options?: GetRecoveryTokenOptions): Promise<RecoveryToken|null> { // eslint-disable-line @typescript-eslint/no-unused-vars
         return null
     }
 
@@ -162,6 +180,11 @@ export abstract class BaseTabComponent extends BaseComponent {
         this.blurred.next()
     }
 
+    /* @hidden */
+    emitVisibility (visibility: boolean): void {
+        this.visibility.next(visibility)
+    }
+
     insertIntoContainer (container: ViewContainerRef): EmbeddedViewRef<any> {
         this.viewContainerEmbeddedRef = container.insert(this.hostView) as EmbeddedViewRef<any>
         this.viewContainer = container
@@ -172,9 +195,20 @@ export abstract class BaseTabComponent extends BaseComponent {
         if (!this.viewContainer || !this.viewContainerEmbeddedRef) {
             return
         }
-        this.viewContainer.detach(this.viewContainer.indexOf(this.viewContainerEmbeddedRef))
+        const viewIndex = this.viewContainer.indexOf(this.viewContainerEmbeddedRef)
+        if (viewIndex !== -1) {
+            this.viewContainer.detach(viewIndex)
+        }
         this.viewContainerEmbeddedRef = undefined
         this.viewContainer = undefined
+    }
+
+    get topmostParent (): BaseTabComponent|null {
+        let parent = this.parent
+        while (parent?.parent) {
+            parent = parent.parent
+        }
+        return parent
     }
 
     /**
@@ -195,7 +229,6 @@ export abstract class BaseTabComponent extends BaseComponent {
             this.destroyed.next()
         }
         this.destroyed.complete()
-        this.hostView.destroy()
     }
 
     /** @hidden */

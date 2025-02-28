@@ -14,10 +14,15 @@ export interface Profile {
     icon?: string
     color?: string
     disableDynamicTitle: boolean
+    behaviorOnSessionEnd: 'auto'|'keep'|'reconnect'|'close'
 
     weight: number
     isBuiltin: boolean
     isTemplate: boolean
+}
+
+export interface ConnectableProfile extends Profile {
+    clearServiceMessagesOnConnect: boolean
 }
 
 export type PartialProfile<T extends Profile> = Omit<Omit<Omit<{
@@ -30,6 +35,21 @@ export type PartialProfile<T extends Profile> = Omit<Omit<Omit<{
     }
 }
 
+export interface ProfileGroup {
+    id: string
+    name: string
+    profiles: PartialProfile<Profile>[]
+    defaults: any
+    editable: boolean
+}
+
+export type PartialProfileGroup<T extends ProfileGroup> = Omit<Omit<{
+    [K in keyof T]?: T[K]
+}, 'id'>, 'name'> & {
+    id: string
+    name: string
+}
+
 export interface ProfileSettingsComponent<P extends Profile> {
     profile: P
     save?: () => void
@@ -38,7 +58,6 @@ export interface ProfileSettingsComponent<P extends Profile> {
 export abstract class ProfileProvider<P extends Profile> {
     id: string
     name: string
-    supportsQuickConnect = false
     settingsComponent?: new (...args: any[]) => ProfileSettingsComponent<P>
     configDefaults = {}
 
@@ -52,9 +71,15 @@ export abstract class ProfileProvider<P extends Profile> {
 
     abstract getDescription (profile: PartialProfile<P>): string
 
-    quickConnect (query: string): PartialProfile<P>|null {
-        return null
-    }
-
     deleteProfile (profile: P): void { }
+}
+
+export abstract class ConnectableProfileProvider<P extends ConnectableProfile> extends ProfileProvider<P> {}
+
+export abstract class QuickConnectProfileProvider<P extends ConnectableProfile> extends ConnectableProfileProvider<P> {
+
+    abstract quickConnect (query: string): PartialProfile<P>|null
+
+    abstract intoQuickConnectString (profile: P): string|null
+
 }

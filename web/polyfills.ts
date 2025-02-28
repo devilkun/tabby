@@ -42,13 +42,14 @@ export class SocketProxy extends Duplex {
 }
 
 Tabby.registerMock('fs', {
+    rmdirSync: () => null,
     realpathSync: () => null,
     readdir: () => null,
     stat: () => null,
     appendFile: () => null,
     constants: {},
 })
-Tabby.registerMock('any-promise', Promise)
+Tabby.registerMock('fs/promises', {})
 Tabby.registerMock('tls', {})
 Tabby.registerMock('module', {
     globalPaths: [],
@@ -68,8 +69,13 @@ Tabby.registerMock('tty', { isatty: () => false })
 Tabby.registerMock('child_process', {})
 Tabby.registerMock('readable-stream', {})
 Tabby.registerMock('os', {
+    arch: () => 'web',
     platform: () => 'web',
     homedir: () => '/home',
+    tmpdir: () => '/tmp',
+    constants: {
+        errno: {},
+    },
 })
 Tabby.registerModule('buffer', {
     Buffer: window['Buffer'],
@@ -90,6 +96,8 @@ Tabby.registerMock('keytar', {
     getPassword: () => null,
 })
 Tabby.registerMock('@serialport/bindings', {})
+Tabby.registerMock('@serialport/bindings-cpp', {})
+Tabby.registerMock('tmp', {})
 
 Tabby.registerModule('net', {
     Socket: SocketProxy,
@@ -130,15 +138,21 @@ Tabby.registerModule('@angular/platform-browser', require('@angular/platform-bro
 Tabby.registerModule('@angular/platform-browser/animations', require('@angular/platform-browser/animations'))
 Tabby.registerModule('@angular/platform-browser-dynamic', require('@angular/platform-browser-dynamic'))
 Tabby.registerModule('@angular/animations', require('@angular/animations'))
+Tabby.registerModule('@angular/localize', require('@angular/localize'))
+Tabby.registerModule('@angular/localize/init', require('@angular/localize/init'))
 Tabby.registerModule('@ng-bootstrap/ng-bootstrap', require('@ng-bootstrap/ng-bootstrap'))
 Tabby.registerModule('ngx-toastr', require('ngx-toastr'))
 Tabby.registerModule('deepmerge', require('deepmerge'))
 Tabby.registerModule('rxjs', require('rxjs'))
 Tabby.registerModule('rxjs/operators', require('rxjs'))
+Tabby.registerModule('string_decoder', require('string_decoder'))
 Tabby.registerModule('js-yaml', require('js-yaml'))
 Tabby.registerModule('zone.js/dist/zone.js', require('zone.js/dist/zone.js'))
+Tabby.registerModule('any-promise', require('any-promise'))
 
 Object.assign(window, {
     __dirname: '__dirname',
     setImmediate: setTimeout as any,
 })
+
+process.addListener = () => null

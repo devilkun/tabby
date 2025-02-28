@@ -27,10 +27,13 @@ yarn-error.log
 docs/api
 .travis.ssh.key
 *.code-workspace
+.idea/
 
 .electron-symbols
 sentry.properties
 sentry-symbols.js
 
-tabby-ssh/util/pagent.exe
 *.psd
+
+crowdin.yml
+.crowdin.env

@@ -1,12 +1,14 @@
-import { NgModule, ModuleWithProviders } from '@angular/core'
-import { BrowserModule } from '@angular/platform-browser'
+import { NgModule, ModuleWithProviders, LOCALE_ID } from '@angular/core'
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations'
+import { CommonModule } from '@angular/common'
 import { FormsModule } from '@angular/forms'
 import { NgbModule } from '@ng-bootstrap/ng-bootstrap'
-import { PerfectScrollbarModule, PERFECT_SCROLLBAR_CONFIG } from 'ngx-perfect-scrollbar'
 import { NgxFilesizeModule } from 'ngx-filesize'
-import { SortablejsModule } from 'ngx-sortablejs'
 import { DragDropModule } from '@angular/cdk/drag-drop'
+import { TranslateModule, TranslateCompiler, TranslateService, MissingTranslationHandler } from '@ngx-translate/core'
+import { TranslateMessageFormatCompiler, MESSAGE_FORMAT_CONFIG } from 'ngx-translate-messageformat-compiler'
+
+import '@angular/localize/init'
 
 import { AppRootComponent } from './components/appRoot.component'
 import { CheckboxComponent } from './components/checkbox.component'
@@ -27,6 +29,7 @@ import { SplitTabPaneLabelComponent } from './components/splitTabPaneLabel.compo
 import { UnlockVaultModalComponent } from './components/unlockVaultModal.component'
 import { WelcomeTabComponent } from './components/welcomeTab.component'
 import { TransfersMenuComponent } from './components/transfersMenu.component'
+import { ProfileIconComponent } from './components/profileIcon.component'
 
 import { AutofocusDirective } from './directives/autofocus.directive'
 import { AlwaysVisibleTypeaheadDirective } from './directives/alwaysVisibleTypeahead.directive'
@@ -34,28 +37,30 @@ import { FastHtmlBindDirective } from './directives/fastHtmlBind.directive'
 import { DropZoneDirective } from './directives/dropZone.directive'
 import { CdkAutoDropGroup } from './directives/cdkAutoDropGroup.directive'
 
-import { Theme, CLIHandler, TabContextMenuItemProvider, TabRecoveryProvider, HotkeyProvider, ConfigProvider, PlatformService, FileProvider, ToolbarButtonProvider, ProfilesService, ProfileProvider, SelectorOption, Profile, SelectorService } from './api'
+import { Theme, CLIHandler, TabContextMenuItemProvider, TabRecoveryProvider, HotkeyProvider, ConfigProvider, PlatformService, FileProvider, ProfilesService, ProfileProvider, QuickConnectProfileProvider, SelectorOption, Profile, SelectorService, CommandProvider, PartialProfileGroup, ProfileGroup } from './api'
 
 import { AppService } from './services/app.service'
 import { ConfigService } from './services/config.service'
 import { VaultFileProvider } from './services/vault.service'
 import { HotkeysService } from './services/hotkeys.service'
+import { CustomMissingTranslationHandler, LocaleService } from './services/locale.service'
+import { CommandService } from './services/commands.service'
 
-import { StandardTheme, StandardCompactTheme, PaperTheme } from './theme'
+import { NewTheme } from './theme'
 import { CoreConfigProvider } from './config'
 import { AppHotkeyProvider } from './hotkeys'
 import { TaskCompletionContextMenu, CommonOptionsContextMenu, TabManagementContextMenu, ProfilesContextMenu } from './tabContextMenu'
 import { LastCLIHandler, ProfileCLIHandler } from './cli'
-import { ButtonProvider } from './buttonProvider'
 import { SplitLayoutProfilesService } from './profiles'
+import { CoreCommandProvider } from './commands'
 
-import 'perfect-scrollbar/css/perfect-scrollbar.css'
+export function TranslateMessageFormatCompilerFactory (): TranslateMessageFormatCompiler {
+    return new TranslateMessageFormatCompiler()
+}
 
 const PROVIDERS = [
     { provide: HotkeyProvider, useClass: AppHotkeyProvider, multi: true },
-    { provide: Theme, useClass: StandardTheme, multi: true },
-    { provide: Theme, useClass: StandardCompactTheme, multi: true },
-    { provide: Theme, useClass: PaperTheme, multi: true },
+    { provide: Theme, useClass: NewTheme, multi: true },
     { provide: ConfigProvider, useClass: CoreConfigProvider, multi: true },
     { provide: TabContextMenuItemProvider, useClass: CommonOptionsContextMenu, multi: true },
     { provide: TabContextMenuItemProvider, useClass: TabManagementContextMenu, multi: true },
@@ -64,23 +69,40 @@ const PROVIDERS = [
     { provide: TabRecoveryProvider, useExisting: SplitTabRecoveryProvider, multi: true },
     { provide: CLIHandler, useClass: ProfileCLIHandler, multi: true },
     { provide: CLIHandler, useClass: LastCLIHandler, multi: true },
-    { provide: PERFECT_SCROLLBAR_CONFIG, useValue: { suppressScrollX: true } },
     { provide: FileProvider, useClass: VaultFileProvider, multi: true },
-    { provide: ToolbarButtonProvider, useClass: ButtonProvider, multi: true },
     { provide: ProfileProvider, useExisting: SplitLayoutProfilesService, multi: true },
+    { provide: CommandProvider, useExisting: CoreCommandProvider, multi: true },
+    {
+        provide: LOCALE_ID,
+        deps: [LocaleService],
+        useFactory: locale => locale.getLocale(),
+    },
+    {
+        provide: MESSAGE_FORMAT_CONFIG,
+        useValue: LocaleService.allLanguages.map(x => x.code),
+    },
 ]
 
 /** @hidden */
 @NgModule({
     imports: [
-        BrowserModule,
         BrowserAnimationsModule,
+        CommonModule,
         FormsModule,
         NgbModule,
         NgxFilesizeModule,
-        PerfectScrollbarModule,
         DragDropModule,
-        SortablejsModule.forRoot({ animation: 150 }),
+        TranslateModule.forRoot({
+            defaultLanguage: 'en',
+            compiler: {
+                provide: TranslateCompiler,
+                useFactory: TranslateMessageFormatCompilerFactory,
+            },
+            missingTranslationHandler: {
+                provide: MissingTranslationHandler,
+                useClass: CustomMissingTranslationHandler,
+            },
+        }),
     ],
     declarations: [
         AppRootComponent,
@@ -107,17 +129,10 @@ const PROVIDERS = [
         TransfersMenuComponent,
         DropZoneDirective,
         CdkAutoDropGroup,
-    ],
-    entryComponents: [
-        PromptModalComponent,
-        RenameTabModalComponent,
-        SafeModeModalComponent,
-        SelectorModalComponent,
-        SplitTabComponent,
-        UnlockVaultModalComponent,
-        WelcomeTabComponent,
+        ProfileIconComponent,
     ],
     exports: [
+        AppRootComponent,
         CheckboxComponent,
         ToggleComponent,
         PromptModalComponent,
@@ -125,8 +140,10 @@ const PROVIDERS = [
         DropZoneDirective,
         FastHtmlBindDirective,
         AlwaysVisibleTypeaheadDirective,
-        SortablejsModule,
         DragDropModule,
+        TranslateModule,
+        CdkAutoDropGroup,
+        ProfileIconComponent,
     ],
 })
 export default class AppModule { // eslint-disable-line @typescript-eslint/no-extraneous-class
@@ -135,6 +152,9 @@ export default class AppModule { // eslint-disable-line @typescript-eslint/no-ex
         config: ConfigService,
         platform: PlatformService,
         hotkeys: HotkeysService,
+        commands: CommandService,
+        public locale: LocaleService,
+        private translate: TranslateService,
         private profilesService: ProfilesService,
         private selector: SelectorService,
     ) {
@@ -150,27 +170,42 @@ export default class AppModule { // eslint-disable-line @typescript-eslint/no-ex
             console.error('Unhandled exception:', err)
         })
 
-        hotkeys.hotkey$.subscribe(async (hotkey) => {
+        hotkeys.hotkey$.subscribe(async hotkey => {
             if (hotkey.startsWith('profile.')) {
                 const id = hotkey.substring(hotkey.indexOf('.') + 1)
                 const profiles = await profilesService.getProfiles()
-                const profile = profiles.find(x => AppHotkeyProvider.getProfileHotkeyName(x) === id)
+                const profile = profiles.find(x => ProfilesService.getProfileHotkeyName(x) === id)
                 if (profile) {
                     profilesService.openNewTabForProfile(profile)
                 }
-            }
-            if (hotkey.startsWith('profile-selectors.')) {
+            } else if (hotkey.startsWith('profile-selectors.')) {
                 const id = hotkey.substring(hotkey.indexOf('.') + 1)
                 const provider = profilesService.getProviders().find(x => x.id === id)
                 if (!provider) {
                     return
                 }
-                this.showSelector(provider)
+                this.showSelector(provider).catch(() => null)
+            } else if (hotkey.startsWith('group-selectors.')) {
+                const id = hotkey.substring(hotkey.indexOf('.') + 1)
+                const groups = await this.profilesService.getProfileGroups({ includeProfiles: true })
+                const group = groups.find(x => x.id === id)
+                if (!group) {
+                    return
+                }
+                this.showGroupSelector(group).catch(() => null)
+            } else if (hotkey === 'command-selector') {
+                commands.showSelector().catch(() => null)
+            } else if (hotkey === 'profile-selector') {
+                commands.run('core:profile-selector', {})
             }
         })
     }
 
     async showSelector (provider: ProfileProvider<Profile>): Promise<void> {
+        if (this.selector.active) {
+            return
+        }
+
         let profiles = await this.profilesService.getProfiles()
 
         profiles = profiles.filter(x => !x.isTemplate && x.type === provider.id)
@@ -180,11 +215,12 @@ export default class AppModule { // eslint-disable-line @typescript-eslint/no-ex
             callback: () => this.profilesService.openNewTabForProfile(p),
         }))
 
-        if (provider.supportsQuickConnect) {
+        if (provider instanceof QuickConnectProfileProvider) {
             options.push({
-                name: 'Quick connect',
-                freeInputPattern: 'Connect to "%s"...',
+                name: this.translate.instant('Quick connect'),
+                freeInputPattern: this.translate.instant('Connect to "%s"...'),
                 icon: 'fas fa-arrow-right',
+                description: `(${provider.name.toUpperCase()})`,
                 callback: query => {
                     const p = provider.quickConnect(query)
                     if (p) {
@@ -194,19 +230,37 @@ export default class AppModule { // eslint-disable-line @typescript-eslint/no-ex
             })
         }
 
-        await this.selector.show('Select profile', options)
+        await this.selector.show(this.translate.instant('Select profile'), options)
+    }
+
+    async showGroupSelector (group: PartialProfileGroup<ProfileGroup>): Promise<void> {
+        if (this.selector.active) {
+            return
+        }
+
+        const profiles = group.profiles ?? []
+
+        const options: SelectorOption<void>[] = profiles.map(p => ({
+            ...this.profilesService.selectorOptionForProfile(p),
+            callback: () => this.profilesService.openNewTabForProfile(p),
+        }))
+
+        await this.selector.show(this.translate.instant('Select profile'), options)
     }
 
     static forRoot (): ModuleWithProviders<AppModule> {
         return {
             ngModule: AppModule,
-            providers: PROVIDERS,
+            providers: [
+                ...PROVIDERS,
+            ],
         }
     }
 }
 
 export { AppRootComponent as bootstrap }
 export * from './api'
+export { AppHotkeyProvider }
 
 // Deprecations
 export { ToolbarButton as IToolbarButton } from './api'

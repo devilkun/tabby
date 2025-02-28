@@ -27,12 +27,12 @@ export class HomeBaseService {
         this.platform.openExternal('https://github.com/Eugeny/tabby')
     }
 
-    openDiscussions (): void {
-        this.platform.openExternal('https://github.com/Eugeny/tabby/discussions')
+    openDiscord (): void {
+        this.platform.openExternal('https://discord.gg/Vn7BjmzhtF')
     }
 
-    openTwitter (): void {
-        this.platform.openExternal('https://twitter.com/eugeeeeny')
+    openTranslations (): void {
+        this.platform.openExternal('https://translate.tabby.sh/project/tabby')
     }
 
     reportBug (): void {
@@ -48,7 +48,7 @@ export class HomeBaseService {
         if (!window.localStorage.analyticsUserID) {
             window.localStorage.analyticsUserID = uuidv4()
         }
-        this.mixpanel = mixpanel.init('bb4638b0860eef14c04d4fbc5eb365fa')
+        this.mixpanel = (mixpanel as any).init('bb4638b0860eef14c04d4fbc5eb365fa')
         if (!window.localStorage.installEventSent) {
             this.mixpanel.track('freshInstall', this.getAnalyticsProperties())
             window.localStorage.installEventSent = true

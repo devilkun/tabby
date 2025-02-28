@@ -4,8 +4,8 @@ import { ConfigProvider, Platform } from 'tabby-core'
 export class SettingsConfigProvider extends ConfigProvider {
     defaults = {
         configSync: {
-            host: 'https://api.tabby.sh',
-            token: '',
+            host: null,
+            token: null,
             configID: null,
             auto: false,
             parts: {
@@ -14,7 +14,13 @@ export class SettingsConfigProvider extends ConfigProvider {
                 vault: true,
             },
         },
+        hotkeys: {
+            'settings-tab': {
+                __nonStructural: true,
+            },
+        },
     }
+
     platformDefaults = {
         [Platform.macOS]: {
             hotkeys: {

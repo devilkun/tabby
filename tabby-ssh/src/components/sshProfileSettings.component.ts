@@ -1,8 +1,9 @@
 /* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 import { Component, ViewChild } from '@angular/core'
 import { NgbModal } from '@ng-bootstrap/ng-bootstrap'
+import { firstBy } from 'thenby'
 
-import { ConfigService, FileProvidersService, Platform, HostAppService, PromptModalComponent, PartialProfile } from 'tabby-core'
+import { FileProvidersService, Platform, HostAppService, PromptModalComponent, PartialProfile, ProfilesService } from 'tabby-core'
 import { LoginScriptsSettingsComponent } from 'tabby-terminal'
 import { PasswordStorageService } from '../services/passwordStorage.service'
 import { ForwardedPortConfig, SSHAlgorithmType, SSHProfile } from '../api'
@@ -10,14 +11,14 @@ import { supportedAlgorithms } from '../algorithms'
 
 /** @hidden */
 @Component({
-    template: require('./sshProfileSettings.component.pug'),
+    templateUrl: './sshProfileSettings.component.pug',
 })
 export class SSHProfileSettingsComponent {
     Platform = Platform
     profile: SSHProfile
     hasSavedPassword: boolean
 
-    connectionMode: 'direct'|'proxyCommand'|'jumpHost'|'socksProxy' = 'direct'
+    connectionMode: 'direct'|'proxyCommand'|'jumpHost'|'socksProxy'|'httpProxy' = 'direct'
 
     supportedAlgorithms = supportedAlgorithms
     algorithms: Record<string, Record<string, boolean>> = {}
@@ -26,14 +27,16 @@ export class SSHProfileSettingsComponent {
 
     constructor (
         public hostApp: HostAppService,
-        private config: ConfigService,
+        private profilesService: ProfilesService,
         private passwordStorage: PasswordStorageService,
         private ngbModal: NgbModal,
         private fileProviders: FileProvidersService,
     ) { }
 
     async ngOnInit () {
-        this.jumpHosts = this.config.store.profiles.filter(x => x.type === 'ssh' && x !== this.profile)
+        this.jumpHosts = (await this.profilesService.getProfiles({ includeBuiltin: false })).filter(x => x.type === 'ssh' && x !== this.profile)
+        this.jumpHosts.sort(firstBy(x => this.getJumpHostLabel(x)))
+
         for (const k of Object.values(SSHAlgorithmType)) {
             this.algorithms[k] = {}
             for (const alg of this.profile.options.algorithms?.[k] ?? []) {
@@ -50,6 +53,8 @@ export class SSHProfileSettingsComponent {
             this.connectionMode = 'jumpHost'
         } else if (this.profile.options.socksProxyHost) {
             this.connectionMode = 'socksProxy'
+        } else if (this.profile.options.httpProxyHost) {
+            this.connectionMode = 'httpProxy'
         }
 
         if (this.profile.options.user) {
@@ -61,12 +66,16 @@ export class SSHProfileSettingsComponent {
         }
     }
 
+    getJumpHostLabel (p: PartialProfile<SSHProfile>) {
+        return p.group ? `${this.profilesService.resolveProfileGroupName(p.group)} / ${p.name}` : p.name
+    }
+
     async setPassword () {
         const modal = this.ngbModal.open(PromptModalComponent)
         modal.componentInstance.prompt = `Password for ${this.profile.options.user}@${this.profile.options.host}`
         modal.componentInstance.password = true
         try {
-            const result = await modal.result
+            const result = await modal.result.catch(() => null)
             if (result?.value) {
                 this.passwordStorage.savePassword(this.profile, result.value)
                 this.hasSavedPassword = true
@@ -80,11 +89,13 @@ export class SSHProfileSettingsComponent {
     }
 
     async addPrivateKey () {
-        const ref = await this.fileProviders.selectAndStoreFile(`private key for ${this.profile.name}`)
-        this.profile.options.privateKeys = [
-            ...this.profile.options.privateKeys!,
-            ref,
-        ]
+        const ref = await this.fileProviders.selectAndStoreFile(`private key for ${this.profile.name}`).catch(() => null)
+        if (ref) {
+            this.profile.options.privateKeys = [
+                ...this.profile.options.privateKeys!,
+                ref,
+            ]
+        }
     }
 
     removePrivateKey (path: string) {
@@ -109,6 +120,10 @@ export class SSHProfileSettingsComponent {
             this.profile.options.socksProxyHost = undefined
             this.profile.options.socksProxyPort = undefined
         }
+        if (this.connectionMode !== 'httpProxy') {
+            this.profile.options.httpProxyHost = undefined
+            this.profile.options.httpProxyPort = undefined
+        }
 
         this.loginScriptsSettings?.save()
     }
@@ -128,6 +143,7 @@ export class SSHProfileSettingsComponent {
             proxyCommand: 'Proxy command',
             jumpHost: 'Jump host',
             socksProxy: 'SOCKS proxy',
+            httpProxy: 'HTTP proxy',
         }[this.connectionMode]
     }
 }

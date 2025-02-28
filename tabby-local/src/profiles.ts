@@ -1,3 +1,4 @@
+import { marker as _ } from '@biesbjerg/ngx-translate-extract-marker'
 import deepClone from 'clone-deep'
 import { Injectable, Inject } from '@angular/core'
 import { ProfileProvider, NewTabParameters, ConfigService, SplitTabComponent, AppService, PartialProfile } from 'tabby-core'
@@ -8,7 +9,7 @@ import { ShellProvider, Shell, SessionOptions, LocalProfile } from './api'
 @Injectable({ providedIn: 'root' })
 export class LocalProfilesService extends ProfileProvider<LocalProfile> {
     id = 'local'
-    name = 'Local'
+    name = _('Local terminal')
     settingsComponent = LocalProfileSettingsComponent
     configDefaults = {
         options: {
@@ -79,6 +80,7 @@ export class LocalProfilesService extends ProfileProvider<LocalProfile> {
             command: shell.command,
             args: shell.args ?? [],
             env: shell.env,
+            cwd: shell.cwd,
         }
     }
 

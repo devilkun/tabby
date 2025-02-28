@@ -1,5 +1,5 @@
 import { Injectable, Inject, NgZone, EventEmitter } from '@angular/core'
-import { Observable, Subject } from 'rxjs'
+import { Observable, Subject, filter } from 'rxjs'
 import { HotkeyDescription, HotkeyProvider } from '../api/hotkeyProvider'
 import { KeyEventData, getKeyName, Keystroke, KeyName, getKeystrokeName, metaKeyName, altKeyName } from './hotkeys.util'
 import { ConfigService } from './config.service'
@@ -28,7 +28,16 @@ export class HotkeysService {
     /**
      * Fired for each recognized hotkey
      */
-    get hotkey$ (): Observable<string> { return this._hotkey }
+    get unfilteredHotkey$ (): Observable<string> { return this._hotkey }
+
+    /**
+     * Fired for each recognized hotkey
+     */
+    get hotkey$ (): Observable<string> {
+        return this._hotkey.pipe(filter(() => {
+            return document.querySelectorAll('input:focus').length === 0
+        }))
+    }
 
     /**
      * Fired for once hotkey is released
@@ -130,9 +139,7 @@ export class HotkeysService {
         const keyName = getKeyName(eventData)
         if (eventName === 'keydown') {
             this.addPressedKey(keyName, eventData)
-            if (!nativeEvent.repeat) {
-                this.recognitionPhase = true
-            }
+            this.recognitionPhase = true
             this.updateModifiers(eventData)
         }
         if (eventName === 'keyup') {
@@ -158,8 +165,10 @@ export class HotkeysService {
 
         const matched = this.matchActiveHotkey()
         this.zone.run(() => {
-            if (matched && this.recognitionPhase) {
-                this.emitHotkeyOn(matched)
+            if (matched) {
+                if (this.recognitionPhase) {
+                    this.emitHotkeyOn(matched)
+                }
             } else if (this.pressedHotkey) {
                 this.emitHotkeyOff(this.pressedHotkey)
             }
@@ -169,7 +178,7 @@ export class HotkeysService {
             this._key.next(getKeyName(eventData))
         })
 
-        if (process.platform === 'darwin' && eventData.metaKey && eventName === 'keydown' && !['Ctrl', 'Shift', altKeyName, metaKeyName].includes(keyName)) {
+        if (process.platform === 'darwin' && eventData.metaKey && eventName === 'keydown' && !['Ctrl', 'Shift', altKeyName, metaKeyName, 'Enter'].includes(keyName)) {
             // macOS will swallow non-modified keyups if Cmd is held down
             this.pushKeyEvent('keyup', nativeEvent)
         }
@@ -209,7 +218,7 @@ export class HotkeysService {
                 let matched = true
                 for (const item of sequence) {
                     const nextOffset = currentSequence.slice(lastIndex).findIndex(
-                        x => x.toLowerCase() === item.toLowerCase()
+                        x => x.toLowerCase() === item.toLowerCase(),
                     )
                     if (nextOffset === -1) {
                         matched = false
@@ -265,7 +274,7 @@ export class HotkeysService {
         return (
             await Promise.all(
                 this.config.enabledServices(this.hotkeyProviders)
-                    .map(async x => x.provide())
+                    .map(async x => x.provide()),
             )
         ).reduce((a, b) => a.concat(b))
     }
@@ -288,16 +297,13 @@ export class HotkeysService {
 
     private emitHotkeyOn (hotkey: string) {
         if (this.pressedHotkey) {
-            if (this.pressedHotkey === hotkey) {
-                return
+            if (this.pressedHotkey !== hotkey) {
+                this.emitHotkeyOff(this.pressedHotkey)
             }
-            this.emitHotkeyOff(this.pressedHotkey)
         }
-        if (document.querySelectorAll('input:focus').length === 0) {
-            console.debug('Matched hotkey', hotkey)
-            this._hotkey.next(hotkey)
-            this.pressedHotkey = hotkey
-        }
+        console.debug('Matched hotkey', hotkey)
+        this._hotkey.next(hotkey)
+        this.pressedHotkey = hotkey
         this.recognitionPhase = false
     }
 

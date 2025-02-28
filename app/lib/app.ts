@@ -1,4 +1,4 @@
-import { app, ipcMain, Menu, Tray, shell, screen, globalShortcut, MenuItemConstructorOptions } from 'electron'
+import { app, ipcMain, Menu, Tray, shell, screen, globalShortcut, MenuItemConstructorOptions, WebContents } from 'electron'
 import promiseIpc from 'electron-promise-ipc'
 import * as remote from '@electron/remote/main'
 import { exec } from 'mz/child_process'
@@ -6,7 +6,7 @@ import * as path from 'path'
 import * as fs from 'fs'
 import { Subject, throttleTime } from 'rxjs'
 
-import { loadConfig } from './config'
+import { saveConfig } from './config'
 import { Window, WindowOptions } from './window'
 import { pluginManager } from './pluginManager'
 import { PTYManager } from './pty'
@@ -23,17 +23,17 @@ export class Application {
     private windows: Window[] = []
     private globalHotkey$ = new Subject<void>()
     private quitRequested = false
-    private configStore: any
     userPluginsPath: string
 
-    constructor () {
+    // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
+    constructor (private configStore: any) {
         remote.initialize()
         this.useBuiltinGraphics()
         this.ptyManager.init(this)
 
-        ipcMain.on('app:config-change', (_event, config) => {
-            this.broadcast('host:config-change', config)
-            this.configStore = config
+        ipcMain.handle('app:save-config', async (event, config) => {
+            await saveConfig(config)
+            this.broadcastExcept('host:config-change', event.sender, config)
         })
 
         ipcMain.on('app:register-global-hotkey', (_event, specs) => {
@@ -63,17 +63,16 @@ export class Application {
             }
         })
 
-        this.configStore = loadConfig()
         if (process.platform === 'linux') {
             app.commandLine.appendSwitch('no-sandbox')
-            if (((this.configStore.appearance || {}).opacity || 1) !== 1) {
+            if ((this.configStore.appearance?.opacity || 1) !== 1) {
                 app.commandLine.appendSwitch('enable-transparent-visuals')
                 app.disableHardwareAcceleration()
             }
-            if (this.configStore.hacks?.disableGPU) {
-                app.commandLine.appendSwitch('disable-gpu')
-                app.disableHardwareAcceleration()
-            }
+        }
+        if (this.configStore.hacks?.disableGPU) {
+            app.commandLine.appendSwitch('disable-gpu')
+            app.disableHardwareAcceleration()
         }
 
         this.userPluginsPath = path.join(
@@ -93,6 +92,10 @@ export class Application {
             app.commandLine.appendSwitch(flag[0], flag[1])
         }
 
+        app.on('before-quit', () => {
+            this.quitRequested = true
+        })
+
         app.on('window-all-closed', () => {
             if (this.quitRequested || process.platform !== 'darwin') {
                 app.quit()
@@ -107,9 +110,9 @@ export class Application {
     }
 
     async newWindow (options?: WindowOptions): Promise<Window> {
-        const window = new Window(this, options)
+        const window = new Window(this, this.configStore, options)
         this.windows.push(window)
-        if (this.windows.length === 1){
+        if (this.windows.length === 1) {
             window.makeMain()
         }
         window.visible$.subscribe(visible => {
@@ -130,7 +133,6 @@ export class Application {
             this.setupMenu()
         }
         await window.ready
-        window.present()
         return window
     }
 
@@ -165,6 +167,14 @@ export class Application {
         }
     }
 
+    broadcastExcept (event: string, except: WebContents, ...args: any[]): void {
+        for (const window of this.windows) {
+            if (window.webContents.id !== except.id) {
+                window.send(event, ...args)
+            }
+        }
+    }
+
     async send (event: string, ...args: any[]): Promise<void> {
         if (!this.hasWindows()) {
             await this.newWindow()
@@ -173,9 +183,10 @@ export class Application {
     }
 
     enableTray (): void {
-        if (this.tray || process.platform === 'linux') {
+        if (!!this.tray || process.platform === 'linux' || (this.configStore.hideTray ?? false) === true) {
             return
         }
+
         if (process.platform === 'darwin') {
             this.tray = new Tray(`${app.getAppPath()}/assets/tray-darwinTemplate.png`)
             this.tray.setPressedImage(`${app.getAppPath()}/assets/tray-darwinHighlightTemplate.png`)
@@ -215,7 +226,10 @@ export class Application {
         }
     }
 
-    handleSecondInstance (argv: string[], cwd: string): void {
+    async handleSecondInstance (argv: string[], cwd: string): Promise<void> {
+        if (!this.windows.length) {
+            await this.newWindow()
+        }
         this.presentAllWindows()
         this.windows[this.windows.length - 1].passCliArguments(argv, cwd, true)
     }

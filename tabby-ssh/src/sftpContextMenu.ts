@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core'
 import { NgbModal } from '@ng-bootstrap/ng-bootstrap'
-import { MenuItemOptions, PlatformService } from 'tabby-core'
+import { MenuItemOptions, PlatformService, TranslateService } from 'tabby-core'
 import { SFTPSession, SFTPFile } from './session/sftp'
 import { SFTPContextMenuItemProvider } from './api'
 import { SFTPDeleteModalComponent } from './components/sftpDeleteModal.component'
@@ -15,6 +15,7 @@ export class CommonSFTPContextMenu extends SFTPContextMenuItemProvider {
     constructor (
         private platform: PlatformService,
         private ngbModal: NgbModal,
+        private translate: TranslateService,
     ) {
         super()
     }
@@ -23,18 +24,27 @@ export class CommonSFTPContextMenu extends SFTPContextMenuItemProvider {
         return [
             {
                 click: async () => {
+                    await panel.openCreateDirectoryModal()
+                },
+                label: this.translate.instant('Create directory'),
+            },
+            {
+                click: async () => {
                     if ((await this.platform.showMessageBox({
                         type: 'warning',
-                        message: `Delete ${item.fullPath}?`,
+                        message: this.translate.instant('Delete {fullPath}?', item),
                         defaultId: 0,
                         cancelId: 1,
-                        buttons: ['Delete', 'Cancel'],
+                        buttons: [
+                            this.translate.instant('Delete'),
+                            this.translate.instant('Cancel'),
+                        ],
                     })).response === 0) {
                         await this.deleteItem(item, panel.sftp)
                         panel.navigate(panel.path)
                     }
                 },
-                label: 'Delete',
+                label: this.translate.instant('Delete'),
             },
         ]
     }
@@ -43,6 +53,6 @@ export class CommonSFTPContextMenu extends SFTPContextMenuItemProvider {
         const modal = this.ngbModal.open(SFTPDeleteModalComponent)
         modal.componentInstance.item = item
         modal.componentInstance.sftp = session
-        await modal.result
+        await modal.result.catch(() => null)
     }
 }
